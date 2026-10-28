@@ -1,0 +1,24 @@
+{
+  "players": 2304,
+  "with_transfermarkt_value": 2147,
+  "with_fifa_value_only": 58,
+  "no_value": 99,
+  "with_contract_years": 1561,
+  "position_groups": {
+    "DF": 756,
+    "MF": 521,
+    "FW": 279,
+    "W": 273,
+    "DM": 176,
+    "GK": 165,
+    "AM": 134
+  },
+  "leagues": {
+    "ESP-La Liga": 497,
+    "ITA-Serie A": 487,
+    "ENG-Premier League": 455,
+    "FRA-Ligue 1": 447,
+    "GER-Bundesliga": 418
+  },
+  "min_nineties": 8
+}

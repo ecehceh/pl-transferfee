@@ -93,12 +93,63 @@ Known schema quirks (verified against the repo's dbt models):
   - app: grouped feature importance, chance-level note on club premiums.
   - scikit-learn >= 1.6 required (GroupKFold shuffle).
 
-## Next steps
+## New direction (2026-10-28): club fit finder
 
-1. Re-run data_prep.py and train_model.py; compare with v3 (keep v3 outputs
-   as models/*_v3.*) and update README "Key findings" + this status.
-2. Run src/export_looker.py, load exports/ into Google Sheets, build the
-   Looker Studio report (docs/looker_studio.md), publish, add link and
-   screenshot (docs/report.png) to the README.
-3. Optional: commit the four app files in models/ and deploy the Streamlit
-   app to Streamlit Community Cloud.
+The user is extending the project from "explain the fee" into a FotMob-inspired
+**player recruitment tool**: pick a club, define a target role + playing style,
+and get a ranked shortlist scoring each candidate on **ability** (stat profile),
+**fit** (how the profile matches the role) and **value** (affordability + the
+fee model's view). The fee model stays as the "value" engine and lives on a
+secondary page.
+
+Decisions made:
+- Stats source: `m-mahadi/top5-football-dataset` (top-5 leagues, 2024/25 &
+  2025/26; xG/xA, duels, aerials, passing splits, FIFA attributes). Downloaded
+  to `data/scout/player_seasons.csv`. It has no transfer fees on purpose, so
+  the "value" pillar joins our Transfermarkt market values (from players.csv)
+  by normalised name, falling back to the FIFA estimate.
+- New modules:
+  - `src/roles.py` — scouting metric vocabulary (label -> column + direction)
+    and a library of ~12 role templates (weighted metric vectors) by position
+    group (GK/DF/DM/MF/AM/W/FW).
+  - `src/scout_prep.py` — builds `data/scout_players.parquet`: per-90 metrics,
+    position groups, joined market value, within-position percentiles. Keeps
+    the latest season per player, min 8 nineties.
+  - `src/scouting.py` — the scoring engine: ability (weighted percentile mean),
+    fit (cosine similarity of the percentile shape to the role vector), value
+    (affordability + ability-per-euro), and `shortlist()` to rank. No file I/O
+    at import, unit-tested in tests/test_scouting.py.
+- App restructured into Streamlit multipage: `app.py` is now the club fit
+  finder (FotMob-style percentile bars, traffic-light colours); the old fee
+  analysis moved to `pages/2_Fee_analysis.py` (its BASE now points at the repo
+  root via `.parent.parent`).
+- `.gitignore` now also lets `data/scout_players.parquet` and
+  `data/scout_summary.json` through so the app deploys without the raw CSV.
+
+Caveats to keep honest in any write-up: FIFA/EA values are estimates not fees;
+name joins are imperfect (~93% matched to Transfermarkt); the fee model was
+trained on moves INTO the PL, so using it to judge a hypothetical signing is an
+approximation.
+
+### v0 patch (2026-10-28, after review vs. FotMob)
+
+Three fixes applied on top of v0 (v0 is tagged and on branch club-fit-finder):
+1. Profile bars now show the raw value next to the percentile
+   (scouting.format_metric; profile_bars adds a value_label column).
+2. scout_prep.py possession-adjusts volume per-90s (ON_BALL_P90 / OFF_BALL_P90
+   scaled by a touch-based team possession share, raw kept as <col>_raw) and
+   adds contract_years_left from fifa_contract_end. Percentiles are computed on
+   the adjusted values. 1,561 / 2,304 players have a contract year.
+3. scouting.explain() gives each shortlisted player a one-line reason (standout
+   metrics + budget position + short-contract flag); shortlist() adds a `why`
+   column and the app surfaces it in the table and the player card.
+Tests: 37 pass; ruff clean.
+
+## Earlier next steps (fee-model deliverables, still open)
+
+1. Re-run data_prep.py and train_model.py — DONE 2026-10-28 (696 deals, R²
+   0.639 -> 0.742, premium R² 0.423). README key findings updated and the four
+   app files in models/ committed.
+2. Run src/export_looker.py — DONE (exports/ CSVs produced). Building the
+   Looker Studio report (docs/looker_studio.md), publishing, and adding the
+   link + screenshot remain the user's manual steps.

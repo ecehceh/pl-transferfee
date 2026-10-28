@@ -40,6 +40,42 @@ where every number, ranges included, follows the filters.
   they sell young players with low listed values. Compared like-for-like, PL
   clubs pay them about 26% *less*.
 
+## Club fit finder (scouting tool)
+
+Beyond explaining fees, the app now answers a recruitment question: **pick a
+club, choose the role and playing style you want, and get a ranked shortlist of
+players.** Each candidate is scored three ways:
+
+- **Ability** — how good they are at the things the role cares about, ranked by
+  percentile *within their position* (the same read as a FotMob stat page).
+- **Fit** — how closely their statistical profile matches the role template,
+  regardless of overall level (a specialist can fit better than a better
+  all-rounder).
+- **Value** — affordability against your budget, plus how much ability you get
+  per euro, using Transfermarkt market values and the fee model.
+
+Stats come from the top-5 European leagues (2024/25 & 2025/26): xG, xA, duels,
+aerials, passing splits and more, from FBref, Understat and SofaScore via the
+[top5-football-dataset](https://github.com/m-mahadi/top5-football-dataset).
+Transfermarkt market values are joined on from this project's own data. It ships
+with ~12 role templates (ball-playing centre-back, deep-lying playmaker, inside
+forward, poacher, pressing forward, and more); the weights are in
+`src/roles.py` and easy to tweak.
+
+To keep the shortlist honest rather than a black-box leaderboard:
+
+- **Raw numbers alongside the ranks.** Each percentile bar shows the actual
+  value (0.62 npxG/90, 86% pass accuracy), the way a FotMob stat page does.
+- **Possession-adjusted volume.** On-ball stats are scaled by the team's share
+  of the ball (proxied by touches vs. the league median), so a player at a
+  high-possession side isn't flattered by his team's style, and defensive
+  volume at a low-possession side isn't under-counted.
+- **Contract awareness.** Years left on each player's contract are shown, and a
+  player in the last year of his deal is flagged as potentially cheaper.
+- **A one-line reason per pick.** Every shortlisted player comes with a short
+  "why": their standout metrics, how they sit against the budget, and any
+  contract flag.
+
 ## The questions
 
 1. **Fee vs. value.** How far do fees drift from Transfermarkt market value, and
@@ -118,11 +154,25 @@ Or download these CSVs into `data/` (same URL pattern, e.g. `.../data/transfers.
 pip install -r requirements.txt
 python src/data_prep.py     # -> data/pl_transfers.parquet, data/prep_summary.json
 python src/train_model.py   # -> models/ (model, metrics, scored transfers)
+python src/scout_prep.py    # -> data/scout_players.parquet (for the fit finder)
 streamlit run app.py
 ```
 
 `prep_summary.json` records how many moves were dropped as free/loan or
 undisclosed — worth quoting in a write-up.
+
+### Scouting data
+
+The club fit finder reads the top-5-leagues player dataset. Fetch it once into
+`data/scout/`:
+
+```bash
+curl -L https://raw.githubusercontent.com/m-mahadi/top5-football-dataset/master/data/master/player_seasons.csv \
+  -o data/scout/player_seasons.csv
+```
+
+Then `python src/scout_prep.py` joins it to the Transfermarkt values and writes
+`data/scout_players.parquet`, which the app uses.
 
 ### 3. Looker Studio report
 
@@ -180,7 +230,9 @@ to leave your machine.
 
 ```
 pl-transferfee/
-├── app.py                 # Streamlit app
+├── app.py                 # Streamlit app: the club fit finder (scouting tool)
+├── pages/
+│   └── 2_Fee_analysis.py  # the fee-vs-value analysis this project grew from
 ├── src/
 │   ├── config.py          # seasons, league tiers, big-six ids, deadlines
 │   ├── download_data.py   # fetch the CSVs from the Kaggle mirror
@@ -189,10 +241,13 @@ pl-transferfee/
 │   ├── seller_effects.py  # domestic premium regression (OLS)
 │   ├── analysis.py        # per-club premiums with bootstrap ranges
 │   ├── labels.py          # readable feature names and groups
-│   └── export_looker.py   # CSVs for the Looker Studio report
+│   ├── export_looker.py   # CSVs for the Looker Studio report
+│   ├── roles.py           # scouting metric vocabulary + role templates
+│   ├── scout_prep.py      # build the scouting table (per-90s, percentiles, values)
+│   └── scouting.py        # ability / fit / value scoring and ranking
 ├── docs/looker_studio.md  # how to build the Looker Studio report
 ├── tests/                 # pytest unit tests
-├── data/                  # downloaded data (gitignored)
+├── data/                  # downloaded data (gitignored, except scout_players.parquet)
 ├── models/                # generated outputs (gitignored, except the app's 4 files)
 ├── exports/               # Looker Studio CSVs (gitignored)
 ├── pyproject.toml         # pytest and ruff settings
