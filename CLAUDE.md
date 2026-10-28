@@ -145,6 +145,26 @@ Three fixes applied on top of v0 (v0 is tagged and on branch club-fit-finder):
    column and the app surfaces it in the table and the player card.
 Tests: 37 pass; ruff clean.
 
+### Role-weight validation (2026-10-28, on main after merging club-fit-finder)
+
+The last review gap: the role weights were unjustified guesses. New
+src/role_validation.py grounds them in the data without pretending they're
+learned:
+- redundancy_report: within-position correlation of a role's metrics; flags
+  pairs with |r| >= 0.7. Found a real issue — advanced playmaker had
+  xa_p90 vs big_chances_created_p90 at r=0.87 (creativity triple-counted).
+- effective_weights: deflates each metric's weight by its summed absolute
+  correlation with the role's other metrics (weight / (1 + load)), renormalised
+  to the same total. shortlist(deflate_redundancy=True) applies this by default
+  via Role.with_weights(). Barely changes an uncorrelated role; rebalances a
+  redundant one (playmaker xa 3.0 -> 2.35, independent np_xg 1.0 -> 1.88).
+- weight_stability: jitters weights +/-25% and reports Spearman rank
+  correlation + top-N overlap vs. baseline. All roles ~0.99 rank corr, ~0.92+
+  top-20 overlap — the key answer to "why these weights": the ranking is driven
+  by metric selection, not the exact numbers.
+App shows all three in a "How this role is weighted" expander under the
+shortlist. Needs scipy (added to requirements). Tests: 41 pass; ruff clean.
+
 ## Earlier next steps (fee-model deliverables, still open)
 
 1. Re-run data_prep.py and train_model.py — DONE 2026-10-28 (696 deals, R²

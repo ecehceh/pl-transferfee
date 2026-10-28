@@ -80,6 +80,13 @@ class Role:
     def metric_columns(self):
         return list(self.weights)
 
+    def with_weights(self, weights: dict) -> "Role":
+        """A copy of this role with its metric weights replaced (same metrics,
+        new emphasis). Used for the redundancy-deflated weights and sensitivity
+        tests."""
+        return Role(name=self.name, pos_group=self.pos_group,
+                    description=self.description, weights=dict(weights))
+
 
 def _role(name, pos_group, description, weights):
     # validate columns exist in the vocabulary so typos fail loudly

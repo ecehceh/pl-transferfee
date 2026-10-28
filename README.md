@@ -75,6 +75,13 @@ To keep the shortlist honest rather than a black-box leaderboard:
 - **A one-line reason per pick.** Every shortlisted player comes with a short
   "why": their standout metrics, how they sit against the budget, and any
   contract flag.
+- **Defensible weights.** The role weights are expert judgement, so the app
+  (`src/role_validation.py`) checks them against the data: it flags metrics
+  that measure nearly the same thing and deflates their weight so a trait isn't
+  counted twice, and it runs a sensitivity test showing the ranking barely
+  moves when the weights are jittered ±25% — the metric *selection* drives the
+  result, not the exact numbers. See the "How this role is weighted" panel
+  under the shortlist.
 
 ## The questions
 

@@ -23,8 +23,9 @@ BASE = Path(__file__).resolve().parent
 DATA = BASE / "data"
 
 sys.path.insert(0, str(BASE / "src"))
+from role_validation import effective_weights, redundancy_report, weight_stability  # noqa: E402
 from roles import METRIC_LABEL, ROLES, role_choices  # noqa: E402
-from scouting import DEFAULT_WEIGHTS, profile_bars, shortlist  # noqa: E402
+from scouting import DEFAULT_WEIGHTS, ability_score, profile_bars, shortlist  # noqa: E402
 
 GOOD = "#0F766E"
 MID = "#F59E0B"
@@ -184,6 +185,49 @@ st.caption(
     "player's deal. Volume stats are possession-adjusted, so a player at a high-possession side isn't "
     "flattered by his team's share of the ball."
 )
+
+# -------------------------------------------------- how trustworthy is this role?
+with st.expander("How this role is weighted, and whether the weights matter"):
+    st.write(
+        "The role's metric weights are expert judgement, not learned from labels — there's no "
+        "ground truth for the 'right' recipe. Two checks keep them honest:"
+    )
+    raw = role.weights
+    eff = effective_weights(df, role)
+    ww = pd.DataFrame({
+        "Metric": [METRIC_LABEL.get(c, c) for c in raw],
+        "Set weight": [raw[c] for c in raw],
+        "Effective weight": [round(eff[c], 2) for c in raw],
+    }).sort_values("Effective weight", ascending=False)
+    st.markdown("**1. Redundancy correction.** When two metrics measure nearly the same thing, the "
+                "role would count that trait twice. Weights are deflated by how much each metric "
+                "overlaps the others, so shared information is counted once. 'Effective weight' is "
+                "what the shortlist actually uses.")
+    st.dataframe(ww, hide_index=True, width="stretch")
+
+    rep = redundancy_report(df, role)
+    flagged = rep[rep["redundant"]] if not rep.empty else rep
+    if not flagged.empty:
+        pairs = ", ".join(
+            f"{METRIC_LABEL.get(r['metric_a'], r['metric_a'])} ↔ "
+            f"{METRIC_LABEL.get(r['metric_b'], r['metric_b'])} (r={r['corr']:.2f})"
+            for _, r in flagged.iterrows()
+        )
+        st.caption(f"Overlapping metric pairs in this role: {pairs}.")
+    else:
+        st.caption("No strongly overlapping metric pairs in this role.")
+
+    stab = weight_stability(
+        df, role, lambda pool, w: ability_score(pool, role.with_weights(w)),
+        n_trials=40, top_n=20,
+    )
+    st.markdown(
+        f"**2. Stability.** Jittering every weight by ±25% over {stab['n_trials']} trials leaves the "
+        f"ranking almost unchanged (rank correlation **{stab['mean_rank_corr']:.2f}**, and "
+        f"**{stab['mean_top_n_overlap']:.0%}** of the top {stab['top_n']} stays in the top {stab['top_n']}). "
+        "So the shortlist is driven by *which* metrics define the role, not the exact weights — the "
+        "part that's a judgement call matters least."
+    )
 
 # ------------------------------------------------------- one player, FotMob-style
 st.subheader("Player profile")

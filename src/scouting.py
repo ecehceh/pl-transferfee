@@ -111,10 +111,22 @@ def shortlist(
     exclude_club: str | None = None,
     max_age: int | None = None,
     top_n: int = 25,
+    deflate_redundancy: bool = True,
 ) -> pd.DataFrame:
     """Rank candidates in the role's position group. Returns a tidy table with
-    the three pillar scores, the overall score, and the key identity columns."""
+    the three pillar scores, the overall score, and the key identity columns.
+
+    `deflate_redundancy` (on by default) rebalances the role's metric weights
+    so metrics that measure near the same thing (e.g. a playmaker's expected
+    assists and big chances created) don't get counted several times. See
+    role_validation.effective_weights.
+    """
     weights = _normalise(weights or DEFAULT_WEIGHTS)
+
+    if deflate_redundancy:
+        # local import avoids a hard dependency for callers that pass weights
+        from role_validation import effective_weights
+        role = role.with_weights(effective_weights(df, role))
 
     pool = df[df["pos_group"] == role.pos_group].copy()
     if exclude_club:

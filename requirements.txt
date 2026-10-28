@@ -8,3 +8,4 @@ plotly>=5.18
 pyarrow>=14.0
 kagglehub>=0.3
 statsmodels>=0.14
+scipy>=1.10  # Spearman rank correlation for role-weight stability
