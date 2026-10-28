@@ -8,6 +8,10 @@ habits — and which clubs consistently pay more or less than they "should".
 Scope: every permanent, paid, disclosed transfer **into** a Premier League club,
 from any league, 2020/21 to 2025/26.
 
+**Explore the results:** Looker Studio report *(link to be added once
+published)*. There's also a fuller interactive version in Streamlit (`app.py`),
+where every number, ranges included, follows the filters.
+
 ## Key findings
 
 > Figures below are from the v3 model (696 paid deals), *before* the
@@ -118,7 +122,20 @@ streamlit run app.py
 `prep_summary.json` records how many moves were dropped as free/loan or
 undisclosed — worth quoting in a write-up.
 
-### 3. Test
+### 3. Looker Studio report
+
+```bash
+python src/export_looker.py   # -> exports/*.csv
+```
+
+Load the CSVs into Google Sheets and build the report by following
+[`docs/looker_studio.md`](docs/looker_studio.md). Looker Studio can't run
+Python, so the statistics (bootstrap ranges, the domestic-premium regression,
+feature contributions) are computed by the export. The report only filters
+and charts them, and club ranges come as fixed selections ("All deals",
+"Excluding under-21s") rather than following every filter.
+
+### 4. Test
 
 ```bash
 pip install pytest
@@ -127,7 +144,7 @@ pytest -q
 
 CI (`.github/workflows/ci.yml`) runs `ruff` and the tests on every pull request.
 
-### 4. Deploy
+### 5. Deploy the Streamlit app (optional)
 
 The app only reads four small files from `models/`: `transfers_scored.parquet`,
 `metrics.json`, `features.json` and `seller_tier_effects.json`. `.gitignore`
@@ -168,10 +185,14 @@ pl-transferfee/
 │   ├── data_prep.py       # build one row per transfer, with features
 │   ├── train_model.py     # baseline + XGBoost, CV residuals, contributions
 │   ├── seller_effects.py  # domestic premium regression (OLS)
-│   └── analysis.py        # per-club premiums with bootstrap ranges
+│   ├── analysis.py        # per-club premiums with bootstrap ranges
+│   ├── labels.py          # readable feature names and groups
+│   └── export_looker.py   # CSVs for the Looker Studio report
+├── docs/looker_studio.md  # how to build the Looker Studio report
 ├── tests/                 # pytest unit tests
 ├── data/                  # downloaded data (gitignored)
 ├── models/                # generated outputs (gitignored, except the app's 4 files)
+├── exports/               # Looker Studio CSVs (gitignored)
 ├── pyproject.toml         # pytest and ruff settings
 └── .streamlit/config.toml # app theme
 ```

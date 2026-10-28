@@ -18,54 +18,12 @@ BASE = Path(__file__).resolve().parent
 MODELS = BASE / "models"
 
 sys.path.insert(0, str(BASE / "src"))
-from analysis import CI_LEVEL, group_premiums  # noqa: E402
+from analysis import CI_LEVEL, YOUNG_AGE, add_deal_labels, group_premiums  # noqa: E402
+from labels import GROUPS, LABELS  # noqa: E402
 
 PREMIUM = "#C2410C"   # paid more than expected
 DISCOUNT = "#0F766E"  # paid less than expected
 NEUTRAL = "#94A3B8"
-# Market values for young prospects are the least reliable (often a token
-# €1m, updated rarely), so the app lets you set these deals aside.
-YOUNG_AGE = 21
-
-LABELS = {
-    "log_mv": "Market value at transfer",
-    "season": "Season",
-    "mv_trend_1y": "Market value trend (1 yr)",
-    "days_since_valuation": "Days since value last updated",
-    "age": "Age",
-    "height_in_cm": "Height",
-    "apps_365d": "Appearances (last 12 months)",
-    "minutes_365d": "Minutes (last 12 months)",
-    "goals_per90": "Goals per 90",
-    "assists_per90": "Assists per 90",
-    "years_at_seller": "Years at selling club",
-    "seller_is_academy": "Sold from an academy side",
-    "seller_relegated": "Seller just relegated",
-    "log_seller_squad_value": "Selling club squad value",
-    "seller_ppg_prev": "Selling club points/game last season",
-    "log_buyer_squad_value": "Buying club squad value",
-    "buyer_ppg_prev": "Buying club points/game last season",
-    "buyer_promoted": "Buyer just promoted",
-    "buyer_big_six": "Buyer is big six",
-    "days_to_deadline": "Days before deadline",
-    "deadline_week": "Signed in deadline week",
-    "position": "Position",
-    "sub_position": "Detailed position",
-    "foot": "Preferred foot",
-    "seller_tier": "Selling league",
-    "window": "Window (summer/winter)",
-}
-# Same groups as the README's feature table. Overlapping features (minutes and
-# appearances, position and detailed position) split credit between them, so
-# the grouped view is the fairer summary.
-GROUPS = {
-    "Player": ["log_mv", "mv_trend_1y", "days_since_valuation", "age", "height_in_cm", "apps_365d",
-               "minutes_365d", "goals_per90", "assists_per90", "position", "sub_position", "foot"],
-    "Selling club": ["seller_tier", "seller_relegated", "log_seller_squad_value", "seller_ppg_prev",
-                     "years_at_seller", "seller_is_academy"],
-    "Buying club": ["log_buyer_squad_value", "buyer_ppg_prev", "buyer_promoted", "buyer_big_six"],
-    "Timing": ["season", "window", "deadline_week", "days_to_deadline"],
-}
 
 st.set_page_config(page_title="What PL clubs pay, and why", page_icon="⚽", layout="wide")
 
@@ -86,11 +44,7 @@ def load():
     metrics = json.loads((MODELS / "metrics.json").read_text())
     feats = json.loads((MODELS / "features.json").read_text())
     tier_effects = json.loads((MODELS / "seller_tier_effects.json").read_text())
-    df["season_label"] = df["season"].map(lambda s: f"{s}/{str(s + 1)[-2:]}")
-    df["deal"] = df["player_name"] + " → " + df["to_club_name"] + " (" + df["season_label"] + ")"
-    # a player can join the same club twice in a season; add the date so both are listed
-    dup = df["deal"].duplicated(keep=False)
-    df.loc[dup, "deal"] += " " + pd.to_datetime(df.loc[dup, "transfer_date"]).dt.strftime("%d %b %Y")
+    df = add_deal_labels(df)
     return df, metrics, feats, tier_effects
 
 
