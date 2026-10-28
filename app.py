@@ -40,6 +40,7 @@ LABELS = {
     "assists_per90": "Assists per 90",
     "years_at_seller": "Years at selling club",
     "seller_is_academy": "Sold from an academy side",
+    "seller_relegated": "Seller just relegated",
     "log_seller_squad_value": "Selling club squad value",
     "seller_ppg_prev": "Selling club points/game last season",
     "log_buyer_squad_value": "Buying club squad value",
@@ -47,11 +48,23 @@ LABELS = {
     "buyer_promoted": "Buyer just promoted",
     "buyer_big_six": "Buyer is big six",
     "days_to_deadline": "Days before deadline",
+    "deadline_week": "Signed in deadline week",
     "position": "Position",
     "sub_position": "Detailed position",
     "foot": "Preferred foot",
     "seller_tier": "Selling league",
     "window": "Window (summer/winter)",
+}
+# Same groups as the README's feature table. Overlapping features (minutes and
+# appearances, position and detailed position) split credit between them, so
+# the grouped view is the fairer summary.
+GROUPS = {
+    "Player": ["log_mv", "mv_trend_1y", "days_since_valuation", "age", "height_in_cm", "apps_365d",
+               "minutes_365d", "goals_per90", "assists_per90", "position", "sub_position", "foot"],
+    "Selling club": ["seller_tier", "seller_relegated", "log_seller_squad_value", "seller_ppg_prev",
+                     "years_at_seller", "seller_is_academy"],
+    "Buying club": ["log_buyer_squad_value", "buyer_ppg_prev", "buyer_promoted", "buyer_big_six"],
+    "Timing": ["season", "window", "deadline_week", "days_to_deadline"],
 }
 
 st.set_page_config(page_title="What PL clubs pay, and why", page_icon="⚽", layout="wide")
@@ -75,6 +88,9 @@ def load():
     tier_effects = json.loads((MODELS / "seller_tier_effects.json").read_text())
     df["season_label"] = df["season"].map(lambda s: f"{s}/{str(s + 1)[-2:]}")
     df["deal"] = df["player_name"] + " → " + df["to_club_name"] + " (" + df["season_label"] + ")"
+    # a player can join the same club twice in a season; add the date so both are listed
+    dup = df["deal"].duplicated(keep=False)
+    df.loc[dup, "deal"] += " " + pd.to_datetime(df.loc[dup, "transfer_date"]).dt.strftime("%d %b %Y")
     return df, metrics, feats, tier_effects
 
 
@@ -180,10 +196,13 @@ with tab_buy:
                           yaxis_title="", margin=dict(l=10))
         st.plotly_chart(fig, width="stretch")
         n_clear = int(g["is_clear"].sum())
+        by_chance = (1 - CI_LEVEL) * len(g)
         st.caption(
             f"Median per club, with a {CI_LEVEL:.0%} bootstrap range. Teal: paid less than expected; "
             "orange: paid more. Grey: the range crosses zero, so these deals can't tell the club apart "
-            f"from an average buyer. {n_clear} of {len(g)} clubs shown are clearly different."
+            f"from an average buyer. {n_clear} of {len(g)} clubs shown are clearly different. "
+            f"Even if every club paid the same, about {by_chance:.0f} would look clearly different by "
+            "chance alone, so treat clubs whose range only just clears zero with care."
         )
 
 # ---------------------------------------------------------------- selling clubs
@@ -198,7 +217,8 @@ with tab_sell:
     survives_wealth = pl_rich["low"] > 0 or pl_rich["high"] < 0
     st.write(
         f"Compared with a similar player bought from a club in another top-5 league (same market value, "
-        f"age, position, season, window and buyer size), Premier League clubs paid **{pct(pl['effect'])}** "
+        f"age, position, season, window, buyer size, and whether the seller was just relegated), "
+        f"Premier League clubs paid **{pct(pl['effect'])}** "
         f"when buying from another Premier League club ({conf} interval {pct(pl['low'])} to "
         f"{pct(pl['high'])}). Also controlling for how rich the selling club is gives "
         f"{pct(pl_rich['effect'])} ({pct(pl_rich['low'])} to {pct(pl_rich['high'])})"
@@ -228,8 +248,10 @@ with tab_sell:
     st.plotly_chart(fig, width="stretch")
     st.caption(
         f"Linear regression of log(fee ÷ market value) on the selling league plus controls, all "
-        f"{spec['n']:,} deals (sidebar filters don't apply). Bars are {conf} intervals with robust "
-        f"standard errors; a bar crossing the dashed line means no clear difference from {ref.lower()} sellers."
+        f"{spec['n']:,} deals (sidebar filters don't apply). Bars are {conf} intervals with standard "
+        "errors clustered by buying club (a club's deals aren't independent of each other); a bar "
+        f"crossing the dashed line means no clear difference from {ref.lower()} sellers. A seller's "
+        "league is the one the player was playing in when sold."
     )
 
     st.subheader("By selling league (raw)")
@@ -278,20 +300,34 @@ with tab_sell:
 # ------------------------------------------------------------- what drives a fee
 with tab_why:
     feat_cols = feats["numeric"] + feats["categorical"]
-    imp = pd.DataFrame({
-        "feature": feat_cols,
-        "impact": [view[f"shap_{c}"].abs().mean() for c in feat_cols],
-    })
-    imp["label"] = imp["feature"].map(LABELS).fillna(imp["feature"])
+    level = st.radio("Show", ["By group", "By factor"], horizontal=True)
+    if level == "By group":
+        # contributions add up, so a group's effect on a deal is the sum of its
+        # members' -- then averaged in absolute size, like the per-factor view
+        rows = []
+        for group, members in GROUPS.items():
+            cols = [f"shap_{c}" for c in members if c in feat_cols]
+            if cols:
+                rows.append({"label": group, "impact": view[cols].sum(axis=1).abs().mean()})
+        imp = pd.DataFrame(rows)
+        height = 300
+    else:
+        imp = pd.DataFrame({
+            "label": [LABELS.get(c, c) for c in feat_cols],
+            "impact": [view[f"shap_{c}"].abs().mean() for c in feat_cols],
+        })
+        height = 580
     imp = imp.sort_values("impact")
     fig = px.bar(imp, x="impact", y="label", orientation="h",
                  labels={"impact": "Average effect on fee ÷ market value (log scale)", "label": ""},
                  color_discrete_sequence=[DISCOUNT])
-    fig.update_layout(height=580)
+    fig.update_layout(height=height)
     st.plotly_chart(fig, width="stretch")
     st.caption(
         "The model starts from the player's market value and predicts how far above or below it the fee "
-        "will land. This shows how much each factor moves that premium on average, in either direction."
+        "will land. This shows how much each factor moves that premium on average, in either direction. "
+        "Related factors (e.g. minutes and appearances) share credit, so the group view is the fairer "
+        "comparison."
     )
 
     st.subheader("How one factor pushes the price")
