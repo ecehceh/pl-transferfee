@@ -14,4 +14,4 @@ target-version = "py311"
 select = ["E", "W", "F", "I"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["analysis", "config", "data_prep", "seller_effects"]
+known-first-party = ["analysis", "config", "data_prep", "export_looker", "labels", "seller_effects"]

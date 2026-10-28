@@ -24,7 +24,12 @@ Decisions already made (don't revisit unless the user asks):
 - Buying club identity is deliberately NOT a model feature, so out-of-fold
   residuals = that club's own premium/discount vs. a similar-sized club.
   Buyer size/form/big-six ARE features.
-- Deliverable: Streamlit app (app.py).
+- Deliverables: a Looker Studio report (main portfolio view, built by the
+  user from src/export_looker.py CSVs via Google Sheets, guide in
+  docs/looker_studio.md) and the Streamlit app (app.py, kept as the fully
+  interactive version). Statistics are computed in Python; Looker Studio
+  only filters and charts them. Feature labels/groups live in src/labels.py
+  so both stay in sync.
 
 ## Data
 
@@ -92,5 +97,8 @@ Known schema quirks (verified against the repo's dbt models):
 
 1. Re-run data_prep.py and train_model.py; compare with v3 (keep v3 outputs
    as models/*_v3.*) and update README "Key findings" + this status.
-2. Commit the four app files in models/ (whitelisted in .gitignore), deploy
-   to Streamlit Community Cloud, add a screenshot to the README.
+2. Run src/export_looker.py, load exports/ into Google Sheets, build the
+   Looker Studio report (docs/looker_studio.md), publish, add link and
+   screenshot (docs/report.png) to the README.
+3. Optional: commit the four app files in models/ and deploy the Streamlit
+   app to Streamlit Community Cloud.

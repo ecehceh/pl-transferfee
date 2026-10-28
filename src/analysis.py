@@ -13,6 +13,21 @@ import pandas as pd
 N_BOOTSTRAP = 2000
 CI_LEVEL = 0.90
 SEED = 0
+# Market values for young prospects are the least reliable (often a token
+# €1m, updated rarely), so the app and the export let you set them aside.
+YOUNG_AGE = 21
+
+
+def add_deal_labels(df: pd.DataFrame) -> pd.DataFrame:
+    """Add `season_label` ("2023/24") and a unique, readable `deal` label
+    ("Player → Buyer (2023/24)"). A player can join the same club twice in a
+    season, so the date is added to those labels."""
+    df = df.copy()
+    df["season_label"] = df["season"].map(lambda s: f"{s}/{str(s + 1)[-2:]}")
+    df["deal"] = df["player_name"] + " → " + df["to_club_name"] + " (" + df["season_label"] + ")"
+    dup = df["deal"].duplicated(keep=False)
+    df.loc[dup, "deal"] += " " + pd.to_datetime(df.loc[dup, "transfer_date"]).dt.strftime("%d %b %Y")
+    return df
 
 
 def bootstrap_median_ci(values, n_boot: int = N_BOOTSTRAP, level: float = CI_LEVEL, seed: int = SEED):
