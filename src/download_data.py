@@ -14,9 +14,9 @@ from pathlib import Path
 
 import kagglehub
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from config import DATA_DIR  # noqa: E402
-from data_prep import TABLES  # noqa: E402
+# `python src/download_data.py` puts src/ on the import path.
+from config import DATA_DIR
+from data_prep import TABLES
 
 KAGGLE_DATASET = "davidcariboo/player-scores"
 
