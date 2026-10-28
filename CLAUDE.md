@@ -131,6 +131,20 @@ name joins are imperfect (~93% matched to Transfermarkt); the fee model was
 trained on moves INTO the PL, so using it to judge a hypothetical signing is an
 approximation.
 
+### v0 patch (2026-10-28, after review vs. FotMob)
+
+Three fixes applied on top of v0 (v0 is tagged and on branch club-fit-finder):
+1. Profile bars now show the raw value next to the percentile
+   (scouting.format_metric; profile_bars adds a value_label column).
+2. scout_prep.py possession-adjusts volume per-90s (ON_BALL_P90 / OFF_BALL_P90
+   scaled by a touch-based team possession share, raw kept as <col>_raw) and
+   adds contract_years_left from fifa_contract_end. Percentiles are computed on
+   the adjusted values. 1,561 / 2,304 players have a contract year.
+3. scouting.explain() gives each shortlisted player a one-line reason (standout
+   metrics + budget position + short-contract flag); shortlist() adds a `why`
+   column and the app surfaces it in the table and the player card.
+Tests: 37 pass; ruff clean.
+
 ## Earlier next steps (fee-model deliverables, still open)
 
 1. Re-run data_prep.py and train_model.py — DONE 2026-10-28 (696 deals, R²

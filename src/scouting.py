@@ -132,18 +132,70 @@ def shortlist(
     pool = pool.sort_values("overall", ascending=False)
     if top_n:
         pool = pool.head(top_n)
-    return pool.reset_index(drop=True)
+    pool = pool.reset_index(drop=True)
+    pool["why"] = [explain(row, role, budget_eur) for _, row in pool.iterrows()]
+    return pool
+
+
+def explain(row: pd.Series, role: Role, budget_eur: float | None = None, n_strengths: int = 2) -> str:
+    """A one-line reason this player made the shortlist: their standout role
+    metrics, a value note, and a short-contract flag. Keeps the shortlist from
+    being an unexplained leaderboard."""
+    # top strengths = highest-percentile role metrics
+    ranked = sorted(
+        ((METRIC_LABEL.get(c, c), row.get(f"pct_{c}")) for c in role.metric_columns()),
+        key=lambda kv: (kv[1] if pd.notna(kv[1]) else -1),
+        reverse=True,
+    )
+    strong = [f"{label.lower()} (top {100 - pct:.0f}%)" for label, pct in ranked[:n_strengths]
+              if pd.notna(pct) and pct >= 60]
+    bits = []
+    if strong:
+        bits.append("strong on " + ", ".join(strong))
+
+    value = row.get("market_value_eur")
+    if pd.notna(value) and budget_eur and budget_eur > 0:
+        if value <= budget_eur:
+            bits.append(f"€{(budget_eur - value) / 1e6:.0f}m under budget")
+        else:
+            bits.append(f"€{(value - budget_eur) / 1e6:.0f}m over budget")
+    if row.get("value", 0) >= 70 and "budget" not in " ".join(bits):
+        bits.append("good value for the ability")
+
+    years = row.get("contract_years_left")
+    if pd.notna(years) and years <= 1:
+        bits.append("contract nearly up — could come cheaper")
+
+    return "; ".join(bits).capitalize() if bits else "Rounded profile for the role."
+
+
+def format_metric(label: str, value) -> str:
+    """Readable raw value for a metric, so the bars show the number a scout
+    cares about next to the percentile (as FotMob does)."""
+    if pd.isna(value):
+        return "–"
+    if "%" in label:
+        return f"{value:.0f}%"
+    if "km/h" in label:
+        return f"{value:.1f}"
+    if "rating" in label.lower():
+        return f"{value:.2f}"
+    if "p90" in label or "per 90" in label.lower():
+        return f"{value:.2f}"
+    return f"{value:.2f}"
 
 
 def profile_bars(row: pd.Series, role: Role) -> pd.DataFrame:
     """The FotMob-style per-metric view for one player: the role's metrics with
-    the player's raw value and within-position percentile, for drawing bars."""
+    the player's raw value (formatted) and within-position percentile."""
     rows = []
     for col in role.metric_columns():
-        pct = row.get(f"pct_{col}")
+        label = METRIC_LABEL.get(col, col)
+        value = row.get(col)
         rows.append({
-            "metric": METRIC_LABEL.get(col, col),
-            "value": row.get(col),
-            "percentile": pct,
+            "metric": label,
+            "value": value,
+            "value_label": format_metric(label, value),
+            "percentile": row.get(f"pct_{col}"),
         })
     return pd.DataFrame(rows).sort_values("percentile", ascending=False, na_position="last")

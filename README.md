@@ -62,6 +62,20 @@ with ~12 role templates (ball-playing centre-back, deep-lying playmaker, inside
 forward, poacher, pressing forward, and more); the weights are in
 `src/roles.py` and easy to tweak.
 
+To keep the shortlist honest rather than a black-box leaderboard:
+
+- **Raw numbers alongside the ranks.** Each percentile bar shows the actual
+  value (0.62 npxG/90, 86% pass accuracy), the way a FotMob stat page does.
+- **Possession-adjusted volume.** On-ball stats are scaled by the team's share
+  of the ball (proxied by touches vs. the league median), so a player at a
+  high-possession side isn't flattered by his team's style, and defensive
+  volume at a low-possession side isn't under-counted.
+- **Contract awareness.** Years left on each player's contract are shown, and a
+  player in the last year of his deal is flagged as potentially cheaper.
+- **A one-line reason per pick.** Every shortlisted player comes with a short
+  "why": their standout metrics, how they sit against the budget, and any
+  contract flag.
+
 ## The questions
 
 1. **Fee vs. value.** How far do fees drift from Transfermarkt market value, and

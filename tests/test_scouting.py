@@ -6,7 +6,9 @@ from roles import METRIC_DIRECTION, ROLES, Role, role_choices
 from scouting import (
     DEFAULT_WEIGHTS,
     ability_score,
+    explain,
     fit_score,
+    format_metric,
     profile_bars,
     shortlist,
     value_score,
@@ -146,3 +148,56 @@ def test_profile_bars_lists_role_metrics_sorted_by_percentile():
     assert set(bars["metric"]) == {"Non-penalty xG p90", "xA p90"}
     pcts = bars["percentile"].dropna()
     assert list(pcts) == sorted(pcts, reverse=True)
+    # a formatted raw value accompanies each bar (fix: show the number, not just the rank)
+    assert "value_label" in bars.columns
+    assert bars["value_label"].notna().all()
+
+
+# --- formatting --------------------------------------------------------------
+def test_format_metric_respects_units():
+    assert format_metric("Pass accuracy %", 86.4) == "86%"
+    assert format_metric("Top speed (km/h)", 33.21) == "33.2"
+    assert format_metric("Non-penalty xG p90", 0.6234) == "0.62"
+    assert format_metric("SofaScore rating", 7.1) == "7.10"
+    assert format_metric("Anything", float("nan")) == "–"
+
+
+# --- explanations ------------------------------------------------------------
+def test_explain_names_strengths_and_budget_and_contract():
+    row = pd.Series({
+        "pct_np_xg_p90": 95.0,   # top 5% -> a named strength
+        "pct_xa_p90": 40.0,      # mediocre -> not named
+        "market_value_eur": 30e6,
+        "value": 80.0,
+        "contract_years_left": 1.0,
+    })
+    text = explain(row, TOY, budget_eur=50e6)
+    assert "non-penalty xg p90" in text.lower()
+    assert "xa p90" not in text.lower()        # below the 60th-pct bar
+    assert "under budget" in text.lower()
+    assert "contract" in text.lower()
+
+
+def test_explain_flags_over_budget():
+    row = pd.Series({
+        "pct_np_xg_p90": 90.0, "pct_xa_p90": 90.0,
+        "market_value_eur": 120e6, "value": 20.0, "contract_years_left": 4.0,
+    })
+    text = explain(row, TOY, budget_eur=50e6)
+    assert "over budget" in text.lower()
+
+
+def test_explain_has_a_fallback_when_nothing_stands_out():
+    row = pd.Series({
+        "pct_np_xg_p90": 45.0, "pct_xa_p90": 45.0,
+        "market_value_eur": float("nan"), "value": 50.0,
+        "contract_years_left": float("nan"),
+    })
+    assert explain(row, TOY) == "Rounded profile for the role."
+
+
+def test_shortlist_adds_a_why_column():
+    pool = make_pool(6)
+    out = shortlist(pool, TOY, budget_eur=100e6, top_n=6)
+    assert "why" in out.columns
+    assert out["why"].notna().all()

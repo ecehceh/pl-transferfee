@@ -146,15 +146,24 @@ if sl.empty:
     st.info("No candidates match this brief. Loosen the budget or age filter.")
     st.stop()
 
+def contract_label(years):
+    if pd.isna(years):
+        return "–"
+    return "≤1 yr" if years <= 1 else f"{years:.0f} yrs"
+
+
 table = sl.assign(
     Value=sl["market_value_eur"].map(eur),
+    Contract=sl.get("contract_years_left", pd.Series(index=sl.index)).map(contract_label),
     Overall=sl["overall"].round(0),
     Ability=sl["ability"].round(0),
     Fit=sl["fit"].round(0),
     ValueScore=sl["value"].round(0),
+    Why=sl["why"],
 ).rename(columns={
     "player": "Player", "team": "Club", "age": "Age", "league": "League",
-})[["Player", "Club", "League", "Age", "Value", "Overall", "Ability", "Fit", "ValueScore"]]
+})[["Player", "Club", "League", "Age", "Value", "Contract",
+    "Overall", "Ability", "Fit", "ValueScore", "Why"]]
 table = table.rename(columns={"ValueScore": "Value score"})
 
 st.dataframe(
@@ -165,12 +174,15 @@ st.dataframe(
         "Ability": st.column_config.ProgressColumn("Ability", min_value=0, max_value=100, format="%d"),
         "Fit": st.column_config.ProgressColumn("Fit", min_value=0, max_value=100, format="%d"),
         "Value score": st.column_config.ProgressColumn("Value score", min_value=0, max_value=100, format="%d"),
+        "Why": st.column_config.TextColumn("Why", width="large"),
     },
 )
 st.caption(
     "Overall is the weighted blend of the three pillars (weights in the sidebar). Ability and Fit are "
     "ranked within the player's position; Value combines affordability and ability-per-euro. "
-    "'Value' column is the Transfermarkt market value, not a predicted fee."
+    "'Value' is the Transfermarkt market value (not a predicted fee); 'Contract' is years left on the "
+    "player's deal. Volume stats are possession-adjusted, so a player at a high-possession side isn't "
+    "flattered by his team's share of the ball."
 )
 
 # ------------------------------------------------------- one player, FotMob-style
@@ -184,23 +196,32 @@ c2.metric("Ability", f"{row['ability']:.0f}")
 c3.metric("Fit", f"{row['fit']:.0f}")
 c4.metric("Value score", f"{row['value']:.0f}")
 c5.metric("Market value", eur(row["market_value_eur"]))
+
+years = row.get("contract_years_left")
+contract_txt = (
+    "contract unknown" if pd.isna(years)
+    else "contract ≤1 year left" if years <= 1
+    else f"{years:.0f} years left on contract"
+)
 st.write(
     f"**{row['player']}** — {row['team']} ({row['league'].split('-')[-1]}), "
-    f"age {row['age']:.0f}, {row['pos_group']}. "
+    f"age {row['age']:.0f}, {row['pos_group']}, {contract_txt}. "
     f"Value source: {row.get('value_source', 'unknown')}."
 )
+st.info(f"**Why shortlisted:** {row['why']}")
 
 bars = profile_bars(row, role)
 fig = go.Figure(go.Bar(
     x=bars["percentile"], y=bars["metric"], orientation="h",
     marker_color=[band_color(p) for p in bars["percentile"]],
-    customdata=bars["value"],
-    hovertemplate="%{y}: %{x:.0f}th pct (raw %{customdata:.2f})<extra></extra>",
+    text=bars["value_label"], textposition="outside", cliponaxis=False,
+    hovertemplate="%{y}: %{x:.0f}th percentile<extra></extra>",
 ))
-fig.update_layout(height=max(260, 28 * len(bars)), xaxis_title="Percentile vs. others in position",
-                  yaxis_title="", xaxis_range=[0, 100], margin=dict(l=10))
+fig.update_layout(height=max(260, 30 * len(bars)), xaxis_title="Percentile vs. others in position",
+                  yaxis_title="", xaxis_range=[0, 108], margin=dict(l=10))
 st.plotly_chart(fig, width="stretch")
 st.caption(
-    "Each bar is where this player ranks against others in the same position on that metric. "
-    "Green ≥ 70th percentile, amber 40–70, red below 40 — the same read as a FotMob stat page."
+    "Each bar is where this player ranks against others in the same position on that metric; the number "
+    "at the end is the raw value. Green ≥ 70th percentile, amber 40–70, red below 40 — the same read as "
+    "a FotMob stat page. Volume metrics are possession-adjusted."
 )
