@@ -9,15 +9,18 @@ Every feature is computed as of the transfer date (no peeking at later data):
            minutes/goals/assists in the prior 365 days
   buyer    squad value before the window, last season's points per game,
            promoted-this-season flag, big-six flag
-  seller   league tier, squad value before the window (excluding the player),
+  seller   league tier (the league the selling club played in when the
+           player last played for it), relegated-last-season flag,
+           squad value before the window (excluding the player),
            last season's points per game (if their league is covered),
            how long the player had been at the club (rough leverage proxy),
-           whether the player came from a club's academy side (U17-U23)
+           whether the player came from a club's academy side (U15-U23)
+  timing   summer/winter window, deadline-week flag (and the raw, noisy
+           days before deadline)
 
 Academy sides ("Man City U21") have their own Transfermarkt ids and play in no
 league the dataset covers, so on their own they look like obscure foreign
 clubs. They are mapped to the parent club for league, form and squad value.
-  timing   summer/winter window, approximate days before deadline
 
 Reads data/transfermarkt-datasets.duckdb if present, otherwise CSVs in data/.
 Writes data/pl_transfers.parquet and data/prep_summary.json.
@@ -25,14 +28,13 @@ Writes data/pl_transfers.parquet and data/prep_summary.json.
 
 import json
 import re
-import sys
 from datetime import date
 
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
-from config import (  # noqa: E402
+# `python src/data_prep.py` puts src/ on the import path, so this works as-is.
+from config import (
     BIG_SIX_CLUB_IDS,
     DATA_DIR,
     PREMIER_LEAGUE_ID,
@@ -46,6 +48,7 @@ DUCKDB_PATH = DATA_DIR / "transfermarkt-datasets.duckdb"
 # Youth/academy sides: "Man City U21", "Liverpool U23". Reserve "B"/"II" teams
 # are left alone because many play in a real league of their own.
 ACADEMY_SUFFIX = re.compile(r"\s+U(1[5-9]|2[0-3])$")
+DEADLINE_WEEK_DAYS = 7  # "deadline week" = the last 7 days before the deadline
 TABLES = ["players", "player_valuations", "appearances", "clubs", "games", "competitions", "transfers"]
 
 
@@ -152,6 +155,30 @@ def days_since_last_valuation(deals: pd.DataFrame, valuations: pd.DataFrame) -> 
                          by="player_id", direction="backward", allow_exact_matches=False)
     last["days_since_valuation"] = (last["transfer_date"] - last["valuation_date"]).dt.days
     return last[["transfer_id", "days_since_valuation"]]
+
+
+def seller_league_info(club_id: int, season: int, window: str, league_by_club_season: dict):
+    """Return (selling club's league, relegated-last-season flag).
+
+    The league is the one the player was actually playing in when sold:
+      summer  the season just finished (season - 1). The season-`season`
+              league is where the club is *about to* play, which would label
+              a just-promoted club as a PL seller and a just-relegated PL club
+              as a Championship seller.
+      winter  the current season.
+    A missing entry means the club played outside the covered leagues, so
+    there is deliberately no fallback to a neighbouring season.
+
+    Relegated: the club was in a covered league last season and is not in it
+    this season. The covered leagues are top flights, so in practice that
+    means it went down -- a seller under financial pressure.
+    """
+    played = season - 1 if window == "summer" else season
+    league = league_by_club_season.get((club_id, played))
+    before = league_by_club_season.get((club_id, season - 1))
+    now = league_by_club_season.get((club_id, season))
+    relegated = int(before is not None and now != before)
+    return league, relegated
 
 
 def window_info(d: pd.Timestamp, season: int):
@@ -270,13 +297,17 @@ def build(t: dict):
     df["window"] = [i[0] for i in info]
     df["ref_date"] = [i[1] for i in info]
     df["days_to_deadline"] = [i[2] for i in info]
+    # Many deals are dated when they took effect (e.g. 1 July), so the exact
+    # day count is noisy; "signed in the final week" is the robust version.
+    df["deadline_week"] = np.where(
+        df["days_to_deadline"].isna(), np.nan,
+        df["days_to_deadline"].between(0, DEADLINE_WEEK_DAYS).astype(float),
+    )
 
     # --- buyer / seller context -----------------------------------------------
-    def league_of(club_id, season):
-        for s in (season, season - 1):
-            if (club_id, s) in league_lookup.index:
-                return league_lookup.loc[(club_id, s), "league_id"]
-        return None
+    league_by_club_season = {
+        (c, s): lg for c, s, lg in leagues[["club_id", "season", "league_id"]].itertuples(index=False)
+    }
 
     def prev_ppg(club_id, season):
         key = (club_id, season - 1)
@@ -288,17 +319,24 @@ def build(t: dict):
     df["seller_club_id"] = df["from_club_id"].map(parents).fillna(df["from_club_id"]).astype("int64")
     summary["academy_sellers_mapped_to_parent"] = int(df["seller_is_academy"].sum())
 
-    df["seller_league"] = [league_of(c, s) for c, s in zip(df["seller_club_id"], df["season"])]
+    seller_info = [
+        seller_league_info(c, s, w, league_by_club_season)
+        for c, s, w in zip(df["seller_club_id"], df["season"], df["window"])
+    ]
+    df["seller_league"] = [i[0] for i in seller_info]
+    df["seller_relegated"] = [i[1] for i in seller_info]
     df["seller_tier"] = df["seller_league"].map(seller_tier)
     df["seller_ppg_prev"] = [prev_ppg(c, s) for c, s in zip(df["seller_club_id"], df["season"])]
+    buyer_was_in_pl = [
+        league_by_club_season.get((c, s - 1)) == PREMIER_LEAGUE_ID
+        for c, s in zip(df["to_club_id"], df["season"])
+    ]
     df["buyer_ppg_prev"] = [
-        prev_ppg(c, s) if league_of(c, s - 1) == PREMIER_LEAGUE_ID else np.nan
-        for c, s in zip(df["to_club_id"], df["season"])
+        prev_ppg(c, s) if in_pl else np.nan
+        for c, s, in_pl in zip(df["to_club_id"], df["season"], buyer_was_in_pl)
     ]
-    df["buyer_promoted"] = [
-        int((c, s - 1) not in league_lookup.index or league_lookup.loc[(c, s - 1), "league_id"] != PREMIER_LEAGUE_ID)
-        for c, s in zip(df["to_club_id"], df["season"])
-    ]
+    df["buyer_promoted"] = [int(not in_pl) for in_pl in buyer_was_in_pl]
+    summary["sellers_relegated_last_season"] = int(df["seller_relegated"].sum())
     df["buyer_big_six"] = df["to_club_id"].isin(BIG_SIX_CLUB_IDS).astype(int)
 
     sv = squad_values(vals, df["ref_date"].unique())

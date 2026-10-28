@@ -22,13 +22,13 @@ Steps
   5. Domestic premium: a separate linear regression of the premium on the
      selling league plus controls (see seller_effects.py).
 
+Needs scikit-learn >= 1.6 (GroupKFold with shuffle).
+
 Writes models/model.json, models/features.json, models/metrics.json,
 models/seller_tier_effects.json and models/transfers_scored.parquet.
 """
 
 import json
-import sys
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -37,9 +37,9 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, r2_score
 from sklearn.model_selection import GroupKFold
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from config import DATA_DIR, MODELS_DIR  # noqa: E402
-from seller_effects import estimate_tier_effects  # noqa: E402
+# `python src/train_model.py` puts src/ on the import path.
+from config import DATA_DIR, MODELS_DIR
+from seller_effects import estimate_tier_effects
 
 NUMERIC = [
     "log_mv",
@@ -54,13 +54,16 @@ NUMERIC = [
     "assists_per90",
     "years_at_seller",
     "seller_is_academy",
+    "seller_relegated",  # relegated last season: under pressure to sell
     "log_seller_squad_value",
     "seller_ppg_prev",
     "log_buyer_squad_value",
     "buyer_ppg_prev",
     "buyer_promoted",
     "buyer_big_six",
-    "days_to_deadline",
+    # 17% of deals are dated 1 July (when they took effect), so the exact
+    # days_to_deadline is noise; a final-week flag is the robust version.
+    "deadline_week",
 ]
 CATEGORICAL = ["position", "sub_position", "foot", "seller_tier", "window"]
 TARGET = "log_fee"
