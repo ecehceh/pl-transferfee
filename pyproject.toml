@@ -1,0 +1,17 @@
+# Tool settings only: the project runs as scripts (see README), not as an
+# installed package.
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+# pycodestyle errors/warnings, pyflakes, import sorting
+select = ["E", "W", "F", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["analysis", "config", "data_prep", "seller_effects"]

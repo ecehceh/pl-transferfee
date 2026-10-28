@@ -1,11 +1,7 @@
-import sys
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from seller_effects import REFERENCE_TIER, estimate_tier_effects  # noqa: E402
+from seller_effects import REFERENCE_TIER, estimate_tier_effects
 
 TIERS = ["Premier League", REFERENCE_TIER, "Other covered league", "Outside covered leagues"]
 
@@ -24,6 +20,8 @@ def synthetic(pl_effect_log: float, n: int = 4000, seed: int = 3) -> pd.DataFram
         "log_buyer_squad_value": rng.normal(19.5, 0.6, n),
         "buyer_big_six": rng.integers(0, 2, n),
         "log_seller_squad_value": rng.normal(18.5, 1.0, n),
+        "seller_relegated": rng.integers(0, 2, n),
+        "to_club_id": rng.integers(0, 40, n),  # 40 buying clubs to cluster on
     })
     premium = 0.15 + pl_effect_log * (df["seller_tier"] == "Premier League") + rng.normal(0, 0.15, n)
     df["log_fee"] = df["log_mv"] + premium
@@ -53,3 +51,4 @@ def test_output_shape_and_reference_tier_excluded():
         tiers = {e["tier"] for e in spec["effects"]}
         assert REFERENCE_TIER not in tiers and len(tiers) == 3
         assert spec["n"] == 4000
+        assert spec["clusters"] == 40

@@ -1,11 +1,7 @@
-import sys
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from analysis import bootstrap_median_ci, group_premiums  # noqa: E402
+from analysis import bootstrap_median_ci, group_premiums
 
 
 def make_deals(club, residuals):

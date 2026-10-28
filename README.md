@@ -8,6 +8,32 @@ habits — and which clubs consistently pay more or less than they "should".
 Scope: every permanent, paid, disclosed transfer **into** a Premier League club,
 from any league, 2020/21 to 2025/26.
 
+## Key findings
+
+> Figures below are from the v3 model (696 paid deals), *before* the
+> selling-league fix, relegated-seller flag and clustered standard errors were
+> added. Re-run `data_prep.py` and `train_model.py` and update them.
+
+- **Market value explains most of a fee, but not all of it.** Market value
+  alone explains 64% of the variation in (log) fees; adding player form, the
+  selling club, the buyer's situation and timing raises that to 74%. The
+  features explain about 43% of *why* a fee lands above or below market value.
+- **There is a domestic premium.** Buying from another Premier League club
+  costs about **+17%** (95% CI +6% to +28%) more than a similar player from
+  another top-5 league, and +16% even after controlling for how rich the
+  selling club is, so it's about buying from a rival, not just from a rich
+  club.
+- **Some buyers really do pay more or less.** After accounting for the
+  player, seller, timing and the buyer's size, 8 of 27 clubs stand clear of
+  zero: **Fulham** and **Nottingham Forest** get discounts; **Newcastle**,
+  **Ipswich**, **Sunderland** and **Leicester** pay a premium.
+- **Chelsea's premium comes from buying young.** Leave out under-21
+  signings and Chelsea is no longer clearly different from an average buyer.
+- **The "cheap" sellers aren't cheap like-for-like.** Clubs outside the
+  covered leagues have the highest raw fee-to-value ratio (1.58×) because
+  they sell young players with low listed values. Compared like-for-like, PL
+  clubs pay them about 24% *less*.
+
 ## The questions
 
 1. **Fee vs. value.** How far do fees drift from Transfermarkt market value, and
@@ -36,20 +62,28 @@ from any league, 2020/21 to 2025/26.
   range; clubs whose range crosses zero are shown as "not clearly different".
 - **Explanations:** per-deal feature contributions (XGBoost's built-in SHAP
   values), which explain the premium over market value.
-- **Domestic premium:** a separate linear regression (statsmodels OLS, robust
-  standard errors) of log(fee ÷ market value) on the selling league plus
-  controls, so "PL clubs pay more to PL sellers" is a like-for-like estimate
-  with a confidence interval rather than a raw average. Run twice: with and
-  without the selling club's squad value as a control.
+- **Domestic premium:** a separate linear regression (statsmodels OLS) of
+  log(fee ÷ market value) on the selling league plus controls, so "PL clubs
+  pay more to PL sellers" is a like-for-like estimate with a confidence
+  interval rather than a raw average. Standard errors are clustered by buying
+  club, since one club's deals aren't independent of each other. Run twice:
+  with and without the selling club's squad value as a control.
+- **Selling league** is the league the player was playing in when sold: last
+  season's league for summer deals, the current one for winter deals. (Using
+  the upcoming season's league would count a just-promoted club as a PL
+  seller.) Clubs relegated the season before are flagged, because they sell
+  under pressure and their summer sales count as PL sales.
+- **Many comparisons:** with 27 clubs and 90% ranges, about 3 would look
+  "clearly different" by chance alone; the app says so next to the chart.
 - **Academy sides:** "Man City U21"-style clubs are mapped to their parent
   club; otherwise academy sales look like sales from obscure foreign clubs.
 
 | Group | Features (all as of the transfer date) |
 |---|---|
 | Player | market value at transfer, 1-year value trend, days since that value was last updated, age, position, foot, height, minutes/goals/assists per 90 in the prior 12 months |
-| Seller | league tier, squad value (excluding the player), last season's points per game, player's years at the club, sold from an academy side |
+| Seller | league tier, relegated last season, squad value (excluding the player), last season's points per game, player's years at the club, sold from an academy side |
 | Buyer | squad value before the window, last season's points per game, promoted flag, big-six flag |
-| Timing | season (market-wide price level), summer/winter window, approximate days before deadline |
+| Timing | season (market-wide price level), summer/winter window, signed in deadline week |
 
 ## Run it
 
@@ -84,6 +118,23 @@ streamlit run app.py
 `prep_summary.json` records how many moves were dropped as free/loan or
 undisclosed — worth quoting in a write-up.
 
+### 3. Test
+
+```bash
+pip install pytest
+pytest -q
+```
+
+CI (`.github/workflows/ci.yml`) runs `ruff` and the tests on every pull request.
+
+### 4. Deploy
+
+The app only reads four small files from `models/`: `transfers_scored.parquet`,
+`metrics.json`, `features.json` and `seller_tier_effects.json`. `.gitignore`
+lets these through, so after training, commit them and deploy `app.py` on
+[Streamlit Community Cloud](https://streamlit.io/cloud). The raw data never has
+to leave your machine.
+
 ## Data caveats (read before drawing conclusions)
 
 - **Free transfers and loans both appear as a fee of 0** in the source data,
@@ -95,8 +146,9 @@ undisclosed — worth quoting in a write-up.
 - **Performance stats only exist for leagues the dataset covers.** Players
   signed from the Championship or most non-European leagues have no minutes or
   goals; the model treats this as missing, not zero.
-- **Transfer dates are often the date a move took effect** (e.g. 1 July), not
-  when it was agreed, so the deadline-day feature is noisy.
+- **Transfer dates are often the date a move took effect** (e.g. 1 July, 17% of
+  deals), not when it was agreed. So the model only uses a coarse "signed in
+  deadline week" flag, and even that misses deals agreed late but dated earlier.
 - **Market value is itself an estimate**, partly informed by fees. Treat
   "paid above market value" as "paid above the crowd's estimate".
 - **Young prospects' market values are the least reliable** — often a token
@@ -108,14 +160,19 @@ undisclosed — worth quoting in a write-up.
 ## Project structure
 
 ```
-pl-transfer-fees/
+pl-transferfee/
 ├── app.py                 # Streamlit app
 ├── src/
 │   ├── config.py          # seasons, league tiers, big-six ids, deadlines
+│   ├── download_data.py   # fetch the CSVs from the Kaggle mirror
 │   ├── data_prep.py       # build one row per transfer, with features
-│   └── train_model.py     # baseline + XGBoost, CV residuals, contributions
+│   ├── train_model.py     # baseline + XGBoost, CV residuals, contributions
+│   ├── seller_effects.py  # domestic premium regression (OLS)
+│   └── analysis.py        # per-club premiums with bootstrap ranges
+├── tests/                 # pytest unit tests
 ├── data/                  # downloaded data (gitignored)
-├── models/                # generated outputs (gitignored)
+├── models/                # generated outputs (gitignored, except the app's 4 files)
+├── pyproject.toml         # pytest and ruff settings
 └── .streamlit/config.toml # app theme
 ```
 
@@ -125,4 +182,5 @@ pl-transfer-fees/
   different things).
 - Track whether "overpaid" signings went on to justify the fee (minutes played,
   resale value).
-- Add selling clubs' financial pressure, e.g. relegated that season.
+- Go further on selling clubs' financial pressure (relegation is now a
+  feature; club losses and PSR/financial-fair-play pressure are not).
