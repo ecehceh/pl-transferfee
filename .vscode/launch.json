@@ -26,7 +26,15 @@
       "console": "integratedTerminal"
     },
     {
-      "name": "3. Streamlit app",
+      "name": "3a. Export for Looker Studio",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/export_looker.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "3b. Streamlit app",
       "type": "debugpy",
       "request": "launch",
       "module": "streamlit",
