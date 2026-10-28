@@ -76,8 +76,21 @@ Known schema quirks (verified against the repo's dbt models):
   outside covered leagues: -24% like-for-like, despite the highest RAW ratio
   (1.58x) — they sell young, cheaply valued players.
 
+- v4 changes (2026-10-28, branch improve-analysis-and-portfolio; NOT yet
+  re-run on real data):
+  - seller league = league the player was playing in when sold (summer:
+    season-1, winter: season; no fallback to a neighbouring season). The
+    old code took the upcoming season first, so promoted clubs counted as PL
+    sellers; it could also have shifted the domestic premium.
+  - new seller_relegated feature (also a control in the domestic-premium OLS).
+  - days_to_deadline replaced in the model by deadline_week (0-7 days).
+  - domestic-premium SEs clustered by buying club (was HC1).
+  - app: grouped feature importance, chance-level note on club premiums.
+  - scikit-learn >= 1.6 required (GroupKFold shuffle).
+
 ## Next steps
 
-1. 17% of deals are dated 1 July (effective date), so days_to_deadline is
-   unreliable — consider dropping it or coarsening to "deadline week".
-2. Write-up of findings, git repo, deploy (models/ is gitignored).
+1. Re-run data_prep.py and train_model.py; compare with v3 (keep v3 outputs
+   as models/*_v3.*) and update README "Key findings" + this status.
+2. Commit the four app files in models/ (whitelisted in .gitignore), deploy
+   to Streamlit Community Cloud, add a screenshot to the README.

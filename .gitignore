@@ -1,8 +1,17 @@
 data/*
 !data/.gitkeep
+# Generated outputs stay out of git, except the four small files the app
+# reads -- committed so the app can be deployed without the raw data.
 models/*
 !models/.gitkeep
+!models/transfers_scored.parquet
+!models/metrics.json
+!models/features.json
+!models/seller_tier_effects.json
 __pycache__/
 *.pyc
 .venv/
 .pytest_cache/
+.ruff_cache/
+# machine-specific editor settings (launch.json is shared)
+.vscode/settings.json
