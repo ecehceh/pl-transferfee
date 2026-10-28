@@ -1,5 +1,9 @@
 data/*
 !data/.gitkeep
+# the scouting app reads this derived table; commit it so the app can deploy
+# without the raw source data (the scout/ CSV stays out of git).
+!data/scout_players.parquet
+!data/scout_summary.json
 # Generated outputs stay out of git, except the four small files the app
 # reads -- committed so the app can be deployed without the raw data.
 models/*
