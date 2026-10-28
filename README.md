@@ -10,29 +10,31 @@ from any league, 2020/21 to 2025/26.
 
 ## Key findings
 
-> Figures below are from the v3 model (696 paid deals), *before* the
-> selling-league fix, relegated-seller flag and clustered standard errors were
-> added. Re-run `data_prep.py` and `train_model.py` and update them.
+> Figures below are from the final model: 696 paid deals, with the
+> selling-league fix, relegated-seller flag and buyer-clustered standard
+> errors.
 
 - **Market value explains most of a fee, but not all of it.** Market value
   alone explains 64% of the variation in (log) fees; adding player form, the
   selling club, the buyer's situation and timing raises that to 74%. The
-  features explain about 43% of *why* a fee lands above or below market value.
+  features explain about 42% of *why* a fee lands above or below market value.
 - **There is a domestic premium.** Buying from another Premier League club
-  costs about **+17%** (95% CI +6% to +28%) more than a similar player from
-  another top-5 league, and +16% even after controlling for how rich the
+  costs about **+19%** (90% CI +9% to +30%) more than a similar player from
+  another top-5 league, and +18% even after controlling for how rich the
   selling club is, so it's about buying from a rival, not just from a rich
   club.
 - **Some buyers really do pay more or less.** After accounting for the
   player, seller, timing and the buyer's size, 8 of 27 clubs stand clear of
-  zero: **Fulham** and **Nottingham Forest** get discounts; **Newcastle**,
-  **Ipswich**, **Sunderland** and **Leicester** pay a premium.
+  zero: **Fulham** gets a discount (−26%); **Chelsea**, **West Ham**,
+  **Bournemouth**, **Ipswich**, **Leicester**, **Newcastle** and
+  **Sunderland** pay a premium.
 - **Chelsea's premium comes from buying young.** Leave out under-21
-  signings and Chelsea is no longer clearly different from an average buyer.
+  signings and Chelsea is no longer clearly different from an average buyer
+  (+11%, range crosses zero).
 - **The "cheap" sellers aren't cheap like-for-like.** Clubs outside the
-  covered leagues have the highest raw fee-to-value ratio (1.58×) because
+  covered leagues have the highest raw fee-to-value ratio (1.43×) because
   they sell young players with low listed values. Compared like-for-like, PL
-  clubs pay them about 24% *less*.
+  clubs pay them about 26% *less*.
 
 ## The questions
 

@@ -1,0 +1,71 @@
+{
+  "reference": "Other top-5 league",
+  "confidence": 0.95,
+  "standard_errors": "clustered by buying club",
+  "specs": {
+    "player_and_buyer": {
+      "n": 696,
+      "clusters": 28,
+      "reference_deals": 236,
+      "r2": 0.42673618273171854,
+      "effects": [
+        {
+          "tier": "Other covered league",
+          "deals": 125,
+          "effect": -0.06768335024136679,
+          "low": -0.14817225608554055,
+          "high": 0.020410924188504112,
+          "p_value": 0.1281726472441523
+        },
+        {
+          "tier": "Outside covered leagues",
+          "deals": 152,
+          "effect": -0.2563821977005494,
+          "low": -0.3563100519301265,
+          "high": -0.1409413218976671,
+          "p_value": 5.739876539150683e-05
+        },
+        {
+          "tier": "Premier League",
+          "deals": 183,
+          "effect": 0.19003811694785344,
+          "low": 0.08786908333754608,
+          "high": 0.3018025252119188,
+          "p_value": 0.0001453492236773539
+        }
+      ]
+    },
+    "plus_seller_wealth": {
+      "n": 696,
+      "clusters": 28,
+      "reference_deals": 236,
+      "r2": 0.42700371656481995,
+      "effects": [
+        {
+          "tier": "Other covered league",
+          "deals": 125,
+          "effect": -0.06251744814064548,
+          "low": -0.15100664053372784,
+          "high": 0.03519482837090698,
+          "p_value": 0.20189006051536795
+        },
+        {
+          "tier": "Outside covered leagues",
+          "deals": 152,
+          "effect": -0.24198579326811825,
+          "low": -0.35994892480282853,
+          "high": -0.10228173989027431,
+          "p_value": 0.0013265479631178476
+        },
+        {
+          "tier": "Premier League",
+          "deals": 183,
+          "effect": 0.1820652695526359,
+          "low": 0.08154911920287472,
+          "high": 0.2919231098004781,
+          "p_value": 0.00022520800815981304
+        }
+      ]
+    }
+  }
+}

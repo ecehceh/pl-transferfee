@@ -1,0 +1,68 @@
+{
+  "numeric": [
+    "log_mv",
+    "season",
+    "mv_trend_1y",
+    "days_since_valuation",
+    "age",
+    "height_in_cm",
+    "apps_365d",
+    "minutes_365d",
+    "goals_per90",
+    "assists_per90",
+    "years_at_seller",
+    "seller_is_academy",
+    "seller_relegated",
+    "log_seller_squad_value",
+    "seller_ppg_prev",
+    "log_buyer_squad_value",
+    "buyer_ppg_prev",
+    "buyer_promoted",
+    "buyer_big_six",
+    "deadline_week"
+  ],
+  "categorical": [
+    "position",
+    "sub_position",
+    "foot",
+    "seller_tier",
+    "window"
+  ],
+  "category_levels": {
+    "position": [
+      "Attack",
+      "Defender",
+      "Goalkeeper",
+      "Midfield"
+    ],
+    "sub_position": [
+      "Attacking Midfield",
+      "Central Midfield",
+      "Centre-Back",
+      "Centre-Forward",
+      "Defensive Midfield",
+      "Goalkeeper",
+      "Left Midfield",
+      "Left Winger",
+      "Left-Back",
+      "Right Winger",
+      "Right-Back",
+      "Second Striker"
+    ],
+    "foot": [
+      "both",
+      "left",
+      "right"
+    ],
+    "seller_tier": [
+      "Other covered league",
+      "Other top-5 league",
+      "Outside covered leagues",
+      "Premier League"
+    ],
+    "window": [
+      "summer",
+      "winter"
+    ]
+  }
+}

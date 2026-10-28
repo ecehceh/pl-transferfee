@@ -1,0 +1,16 @@
+{
+  "n_transfers": 696,
+  "baseline_market_value_only": {
+    "r2": 0.639,
+    "mae_log": 0.446,
+    "typical_error_pct": 56.2
+  },
+  "full_model": {
+    "r2": 0.742,
+    "mae_log": 0.386,
+    "r2_premium": 0.423,
+    "typical_error_pct": 47.1
+  },
+  "median_fee_to_value": 1.238,
+  "share_paid_above_value": 0.659
+}
