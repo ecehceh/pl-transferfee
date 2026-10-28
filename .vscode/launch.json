@@ -1,0 +1,38 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "0. Download data (Kaggle)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/download_data.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "1. Data prep",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/data_prep.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "2. Train model",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/train_model.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "3. Streamlit app",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "streamlit",
+      "args": ["run", "app.py"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    }
+  ]
+}
