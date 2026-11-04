@@ -82,6 +82,16 @@ To keep the shortlist honest rather than a black-box leaderboard:
   moves when the weights are jittered ±25% — the metric *selection* drives the
   result, not the exact numbers. See the "How this role is weighted" panel
   under the shortlist.
+- **Finer positions and goalkeepers.** Centre-backs and full-backs are scouted
+  separately, goalkeepers have their own roles (shot-stopper, sweeper-keeper),
+  and wide/full-back searches can be filtered by side and preferred foot.
+- **Availability filter.** Narrow the shortlist to players with ≤2 years left
+  on their contract — more likely to move and cheaper to sign.
+- **Form trend.** Players seen in both seasons carry a Rising / Steady / Fading
+  tag from the change in their output, shown next to the shortlist (a tag only;
+  it doesn't change the scores).
+- **Explained fit.** The player profile breaks the fit score into per-metric
+  contributions, showing which traits match the role and which work against it.
 
 ## The questions
 

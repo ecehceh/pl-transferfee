@@ -211,3 +211,35 @@ def profile_bars(row: pd.Series, role: Role) -> pd.DataFrame:
             "percentile": row.get(f"pct_{col}"),
         })
     return pd.DataFrame(rows).sort_values("percentile", ascending=False, na_position="last")
+
+
+def fit_breakdown(row: pd.Series, role: Role) -> pd.DataFrame:
+    """Decompose one player's fit score into per-metric contributions, so the
+    app can explain *why* the fit is high or low (the way the fee page explains
+    a fee).
+
+    Fit is the dot product of the player's centred percentile vector with the
+    role's centred weight vector. Each metric's term in that dot product is its
+    contribution: positive means the player matches what the role emphasises
+    (strong where the role wants emphasis, or modest where it de-emphasises);
+    negative means a mismatch. Contributions are scaled to sum to 100% of the
+    absolute movement, for a readable bar chart.
+    """
+    w = _normalise(role.weights)
+    cols = list(w)
+    target = np.array([w[c] for c in cols])
+    target = target - target.mean()  # same centring as fit_score
+    player = np.array([
+        (row.get(f"pct_{c}") if pd.notna(row.get(f"pct_{c}")) else 50.0) - 50.0
+        for c in cols
+    ])
+    contrib = player * target  # per-metric term of the cosine numerator
+    total = np.abs(contrib).sum()
+    share = contrib / total * 100 if total > 0 else np.zeros_like(contrib)
+    out = pd.DataFrame({
+        "metric": [METRIC_LABEL.get(c, c) for c in cols],
+        "percentile": [row.get(f"pct_{c}") for c in cols],
+        "contribution": share,
+        "helps_fit": contrib >= 0,
+    })
+    return out.reindex(out["contribution"].abs().sort_values(ascending=False).index).reset_index(drop=True)

@@ -25,7 +25,13 @@ DATA = BASE / "data"
 sys.path.insert(0, str(BASE / "src"))
 from role_validation import effective_weights, redundancy_report, weight_stability  # noqa: E402
 from roles import METRIC_LABEL, ROLES, role_choices  # noqa: E402
-from scouting import DEFAULT_WEIGHTS, ability_score, profile_bars, shortlist  # noqa: E402
+from scouting import (  # noqa: E402
+    DEFAULT_WEIGHTS,
+    ability_score,
+    fit_breakdown,
+    profile_bars,
+    shortlist,
+)
 
 GOOD = "#0F766E"
 MID = "#F59E0B"
@@ -99,6 +105,18 @@ with st.sidebar:
     max_age = st.slider("Maximum age", 17, 36, 27)
     exclude_own = st.checkbox(f"Exclude players already at {club}", value=True)
 
+    st.subheader("Availability & profile")
+    only_gettable = st.checkbox(
+        "Only realistically available", value=False,
+        help="Keeps players whose contract has ≤2 years left (more likely to move and cheaper to "
+             "prise away). Players with unknown contract are kept.",
+    )
+    foot_pick = st.selectbox("Preferred foot", ["Any", "Left", "Right"])
+    # side filter only makes sense for wide roles and full-backs
+    side_pick = "Any"
+    if role.pos_group in ("W", "FB"):
+        side_pick = st.selectbox("Side", ["Any", "Left", "Right"])
+
     st.subheader("What matters most")
     st.caption("Weights are relative and rescaled to sum to 1.")
     w_ability = st.slider("Ability", 0.0, 1.0, DEFAULT_WEIGHTS["ability"], 0.05)
@@ -139,12 +157,22 @@ else:
 
 # ------------------------------------------------------------------- shortlist
 st.subheader(f"Best {role.name.lower()} fits for {club}")
+
+# apply the availability / profile filters before scoring
+pool = df
+if only_gettable:
+    pool = pool[pool["contract_years_left"].isna() | (pool["contract_years_left"] <= 2)]
+if foot_pick != "Any":
+    pool = pool[pool["foot"] == foot_pick]
+if side_pick != "Any":
+    pool = pool[pool["side"] == side_pick]
+
 sl = shortlist(
-    df, role, budget_eur=budget, weights=weights,
+    pool, role, budget_eur=budget, weights=weights,
     exclude_club=club if exclude_own else None, max_age=max_age, top_n=25,
 )
 if sl.empty:
-    st.info("No candidates match this brief. Loosen the budget or age filter.")
+    st.info("No candidates match this brief. Loosen the budget, age, or availability filters.")
     st.stop()
 
 def contract_label(years):
@@ -153,9 +181,13 @@ def contract_label(years):
     return "≤1 yr" if years <= 1 else f"{years:.0f} yrs"
 
 
+TREND_TAG = {"Rising": "↑ Rising", "Fading": "↓ Fading", "Steady": "→ Steady",
+             "New / one season": "· 1 season"}
+
 table = sl.assign(
     Value=sl["market_value_eur"].map(eur),
     Contract=sl.get("contract_years_left", pd.Series(index=sl.index)).map(contract_label),
+    Form=sl["trajectory"].map(lambda t: TREND_TAG.get(t, t)),
     Overall=sl["overall"].round(0),
     Ability=sl["ability"].round(0),
     Fit=sl["fit"].round(0),
@@ -163,7 +195,7 @@ table = sl.assign(
     Why=sl["why"],
 ).rename(columns={
     "player": "Player", "team": "Club", "age": "Age", "league": "League",
-})[["Player", "Club", "League", "Age", "Value", "Contract",
+})[["Player", "Club", "League", "Age", "Value", "Contract", "Form",
     "Overall", "Ability", "Fit", "ValueScore", "Why"]]
 table = table.rename(columns={"ValueScore": "Value score"})
 
@@ -182,8 +214,10 @@ st.caption(
     "Overall is the weighted blend of the three pillars (weights in the sidebar). Ability and Fit are "
     "ranked within the player's position; Value combines affordability and ability-per-euro. "
     "'Value' is the Transfermarkt market value (not a predicted fee); 'Contract' is years left on the "
-    "player's deal. Volume stats are possession-adjusted, so a player at a high-possession side isn't "
-    "flattered by his team's share of the ball."
+    "player's deal; 'Form' compares this season with last (Rising / Steady / Fading, from the two "
+    "seasons of data) and is shown as a tag only — it doesn't change the scores. Volume stats are "
+    "possession-adjusted, so a player at a high-possession side isn't flattered by his team's share "
+    "of the ball."
 )
 
 # -------------------------------------------------- how trustworthy is this role?
@@ -247,9 +281,12 @@ contract_txt = (
     else "contract ≤1 year left" if years <= 1
     else f"{years:.0f} years left on contract"
 )
+side_txt = f", {row['side'].lower()} side" if row.get("side") in ("Left", "Right") else ""
+foot_txt = f", {row['foot'].lower()}-footed" if pd.notna(row.get("foot")) else ""
 st.write(
     f"**{row['player']}** — {row['team']} ({row['league'].split('-')[-1]}), "
-    f"age {row['age']:.0f}, {row['pos_group']}, {contract_txt}. "
+    f"age {row['age']:.0f}, {row['pos_group']}{side_txt}{foot_txt}, {contract_txt}. "
+    f"Form trend: **{row.get('trajectory', 'unknown')}**. "
     f"Value source: {row.get('value_source', 'unknown')}."
 )
 st.info(f"**Why shortlisted:** {row['why']}")
@@ -268,4 +305,23 @@ st.caption(
     "Each bar is where this player ranks against others in the same position on that metric; the number "
     "at the end is the raw value. Green ≥ 70th percentile, amber 40–70, red below 40 — the same read as "
     "a FotMob stat page. Volume metrics are possession-adjusted."
+)
+
+# fit breakdown: which metrics push this player's fit up or down
+st.markdown(f"**Why the fit score is {row['fit']:.0f}**")
+fb = fit_breakdown(row, role)
+fig = go.Figure(go.Bar(
+    x=fb["contribution"], y=fb["metric"], orientation="h",
+    marker_color=[GOOD if h else POOR for h in fb["helps_fit"]],
+    hovertemplate="%{y}: %{x:+.0f}% of the fit movement<extra></extra>",
+))
+fig.update_layout(height=max(240, 30 * len(fb)),
+                  xaxis_title="Share of the fit score (+ helps the role, − works against it)",
+                  yaxis_title="", margin=dict(l=10))
+fig.add_vline(x=0, line_color=NEUTRAL, line_dash="dash")
+st.plotly_chart(fig, width="stretch")
+st.caption(
+    "Fit measures how closely the player's profile *shape* matches the role, regardless of overall "
+    "level. Green metrics are where the player matches what the role emphasises; red are where the "
+    "shape works against the role (e.g. strong in a trait this role doesn't prioritise)."
 )

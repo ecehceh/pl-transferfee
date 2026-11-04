@@ -56,6 +56,12 @@ METRICS = {
     "Aerial duels won %": ("ss_aerialDuelsWonPercentage", +1),
     "Errors leading to shot p90": ("errors_p90", -1),
     "Dribbled past p90": ("dribbled_past_p90", -1),
+    # goalkeeping
+    "Goals prevented (vs xG)": ("ss_goalsPrevented", +1),
+    "Saves p90": ("saves_p90", +1),
+    "Goals conceded p90": ("goals_conceded_p90", -1),
+    "High claims p90": ("high_claims_p90", +1),
+    "Sweeper actions (runs out) p90": ("runs_out_p90", +1),
     # physical / misc
     "Top speed (km/h)": ("ss_topSpeed", +1),
     "SofaScore rating": ("ss_rating", +1),
@@ -100,7 +106,7 @@ def _role(name, pos_group, description, weights):
 # Position groups: GK, DF (centre-back), DM, MF, AM, W (wide), FW (centre-fwd).
 ROLES = {
     "ball_playing_cb": _role(
-        "Ball-playing centre-back", "DF",
+        "Ball-playing centre-back", "CB",
         "Defends and starts play: high pass accuracy, progressive passing, aerials, few errors.",
         {
             "ss_accuratePassesPercentage": 3,
@@ -114,7 +120,7 @@ ROLES = {
         },
     ),
     "stopper_cb": _role(
-        "No-nonsense centre-back", "DF",
+        "No-nonsense centre-back", "CB",
         "Wins the ball and clears danger: aerials, clearances, blocks, duels.",
         {
             "ss_aerialDuelsWonPercentage": 3,
@@ -127,7 +133,7 @@ ROLES = {
         },
     ),
     "attacking_fullback": _role(
-        "Attacking full-back", "DF",
+        "Attacking full-back", "FB",
         "Overlaps and crosses while defending the flank.",
         {
             "ss_accurateCrossesPercentage": 2,
@@ -138,6 +144,19 @@ ROLES = {
             "interceptions_p90": 2,
             "ss_groundDuelsWonPercentage": 1,
             "dribbled_past_p90": 1,
+        },
+    ),
+    "defensive_fullback": _role(
+        "Defensive full-back", "FB",
+        "Locks down the flank first: duels, tackles, interceptions, rarely beaten.",
+        {
+            "tackles_won_p90": 3,
+            "interceptions_p90": 2,
+            "ss_groundDuelsWonPercentage": 2,
+            "clearances_p90": 2,
+            "ss_aerialDuelsWonPercentage": 1,
+            "dribbled_past_p90": 2,
+            "ss_accuratePassesPercentage": 1,
         },
     ),
     "holding_mid": _role(
@@ -252,11 +271,32 @@ ROLES = {
             "shots_p90": 1,
         },
     ),
+    "shot_stopper_gk": _role(
+        "Shot-stopping goalkeeper", "GK",
+        "Keeps goals out above all: saves more than the xG model expects.",
+        {
+            "ss_goalsPrevented": 3,
+            "saves_p90": 2,
+            "goals_conceded_p90": 2,
+            "high_claims_p90": 1,
+        },
+    ),
+    "sweeper_keeper_gk": _role(
+        "Sweeper-keeper", "GK",
+        "Defends space and builds from the back: comes off the line, passes well.",
+        {
+            "runs_out_p90": 3,
+            "ss_accuratePassesPercentage": 3,
+            "ss_accurateLongBallsPercentage": 2,
+            "ss_goalsPrevented": 2,
+            "high_claims_p90": 1,
+        },
+    ),
 }
 
 
 def role_choices():
     """(key, display name) pairs for a dropdown, grouped sensibly by position."""
-    order = ["GK", "DF", "DM", "MF", "AM", "W", "FW"]
+    order = ["GK", "CB", "FB", "DM", "MF", "AM", "W", "FW"]
     keys = sorted(ROLES, key=lambda k: (order.index(ROLES[k].pos_group), ROLES[k].name))
     return [(k, ROLES[k].name) for k in keys]
