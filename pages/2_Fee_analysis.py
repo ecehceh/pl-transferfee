@@ -25,7 +25,7 @@ PREMIUM = "#C2410C"   # paid more than expected
 DISCOUNT = "#0F766E"  # paid less than expected
 NEUTRAL = "#94A3B8"
 
-st.set_page_config(page_title="What PL clubs pay, and why", page_icon="⚽", layout="wide")
+
 
 
 def eur(x):
