@@ -7,6 +7,7 @@ from scouting import (
     DEFAULT_WEIGHTS,
     ability_score,
     explain,
+    fit_breakdown,
     fit_score,
     format_metric,
     profile_bars,
@@ -201,3 +202,22 @@ def test_shortlist_adds_a_why_column():
     out = shortlist(pool, TOY, budget_eur=100e6, top_n=6)
     assert "why" in out.columns
     assert out["why"].notna().all()
+
+
+# --- fit breakdown -----------------------------------------------------------
+def test_fit_breakdown_contributions_sum_to_100_and_sign_is_right():
+    # TOY weights np_xg (3) over xa (1); centred target is +np_xg, -xa.
+    # A player strong on np_xg, weak on xa should have np_xg helping the fit.
+    row = pd.Series({"pct_np_xg_p90": 90.0, "pct_xa_p90": 20.0})
+    fb = fit_breakdown(row, TOY)
+    assert set(fb["metric"]) == {"Non-penalty xG p90", "xA p90"}
+    assert np.isclose(fb["contribution"].abs().sum(), 100.0)
+    xg_row = fb[fb["metric"] == "Non-penalty xG p90"].iloc[0]
+    assert xg_row["helps_fit"]  # strong in the emphasised metric -> helps
+
+
+def test_fit_breakdown_handles_missing_percentiles():
+    row = pd.Series({"pct_np_xg_p90": 80.0})  # xa missing -> treated as median
+    fb = fit_breakdown(row, TOY)
+    assert len(fb) == 2
+    assert fb["contribution"].notna().all()

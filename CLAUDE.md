@@ -165,6 +165,42 @@ learned:
 App shows all three in a "How this role is weighted" expander under the
 shortlist. Needs scipy (added to requirements). Tests: 41 pass; ruff clean.
 
+### v1 (2026-11-04, branch v1-roles-trajectory): Tier 1 + Tier 2
+
+User chose: add an availability filter; trajectory as a display TAG not a score
+input; SKIP transfer-validation (data windows barely overlap, club-need is
+model-derived, so it could only ever be suggestive).
+
+Tier 1 (gaps / rigor):
+- scout_prep.position_group now splits DF -> CB (511) / FB (245); added
+  player_side (Left/Right/Any) from Transfermarkt sub-position. Wingers stay
+  pooled as W (L/R are mirror images) and are filtered by side instead.
+  roles.py: the two CB roles -> pos_group "CB"; attacking_fullback -> "FB";
+  new defensive_fullback (FB). role_choices order updated (GK,CB,FB,DM,...).
+- Goalkeepers: new GK per-90s in build_derived (saves_p90, high_claims_p90,
+  runs_out_p90, goals_conceded_p90) + GK metrics in roles.METRICS
+  (ss_goalsPrevented, saves_p90, goals_conceded_p90[-1], high_claims_p90,
+  runs_out_p90). Two GK roles: shot_stopper_gk, sweeper_keeper_gk.
+  NOTE: GK metrics must be in roles.METRICS before scout_prep runs, or their
+  pct_ columns aren't built (hit this once; rebuild after editing METRICS).
+- scouting.fit_breakdown(row, role): decomposes the fit cosine numerator into
+  per-metric contributions (player_centred * target_centred), scaled to sum to
+  100% of absolute movement, with a helps_fit flag. Surfaced in the app under
+  the profile bars.
+
+Tier 2 (depth):
+- scout_prep.add_trajectory: computes a two-season form trend BEFORE the
+  latest-season cut. z-scores a small output basket (np_xg, xa, rating,
+  dribbles, tackles_won) within season, takes the mean change, buckets to
+  Rising / Steady / Fading (|delta| >= 0.25) / "New / one season". Display tag
+  only. Counts: 221 Rising, 294 Fading, 605 Steady, 1184 single-season.
+- scout_prep.add_foot: clean Left/Right foot column from fifa_foot (1738/2304).
+- App: sidebar "Availability & profile" block (only-gettable <=2yr contract,
+  foot filter, side filter for W/FB roles); Form column + trend tags in the
+  shortlist; foot/side/trend in the player card; fit-breakdown chart.
+Tests: 49 pass (new test_scout_prep.py + fit_breakdown tests); ruff clean.
+App boots clean. NOT yet merged to main.
+
 ## Earlier next steps (fee-model deliverables, still open)
 
 1. Re-run data_prep.py and train_model.py — DONE 2026-10-28 (696 deals, R²

@@ -5,15 +5,19 @@ Takes the raw top-5-leagues player-season dataset (data/scout/player_seasons.csv
 one row per player-season with xG, duels, passing, FIFA attributes) and turns it
 into one analysis-ready table:
 
-  - derives the per-90 metrics the role templates reference (roles.py)
-  - assigns each player a position group (GK, DF, DM, MF, AM, W, FW)
+  - derives the per-90 metrics the role templates reference (roles.py),
+    including goalkeeping metrics
+  - assigns each player a position group (GK, CB, FB, DM, MF, AM, W, FW) and a
+    side (Left/Right/Any) for the footedness-aware filters
   - joins a Transfermarkt market value from our existing players.csv, by name,
     so the "value" pillar uses real transfer-market money, not EA's estimate
+  - adds contract years left, preferred foot, and a two-season form trend
+    (Rising / Steady / Fading) used as a display tag, not in the scores
   - computes a percentile (0-100) for every scouting metric, ranked *within
     position group* so a defender is compared with defenders
 
 Keeps the most recent season per player (a player who appears in both 24/25 and
-25/26 is represented by their latest season).
+25/26 is represented by their latest season; the form trend compares the two).
 
 Run:  python src/scout_prep.py   -> data/scout_players.parquet
 """
@@ -59,7 +63,12 @@ def _per90(series: pd.Series, nineties: pd.Series) -> pd.Series:
 
 def position_group(pos: str, sub_position: str | float) -> str:
     """Collapse FBref `pos` and Transfermarkt sub-position into one of
-    GK, DF, DM, MF, AM, W, FW. `pos` is like 'MF,FW'; first token leads."""
+    GK, CB, FB, DM, MF, AM, W, FW. `pos` is like 'MF,FW'; first token leads.
+
+    Centre-backs and full-backs are split (CB/FB) because they're priced and
+    scouted on different things; wingers stay pooled as W (left and right are
+    mirror images statistically) with a separate `side` column for filtering.
+    """
     if not isinstance(pos, str) or not pos:
         return "MF"
     primary = pos.split(",")[0]
@@ -67,8 +76,11 @@ def position_group(pos: str, sub_position: str | float) -> str:
     if primary == "GK":
         return "GK"
     if primary == "DF":
-        # full-backs and centre-backs both live in DF for now
-        return "DF"
+        if "Back" in sub and "Centre-Back" not in sub:  # Right-Back / Left-Back
+            return "FB"
+        if "Centre-Back" in sub:
+            return "CB"
+        return "CB"  # unknown defender defaults to centre-back
     if primary == "FW":
         if any(h in sub for h in WIDE_HINTS):
             return "W"
@@ -81,6 +93,15 @@ def position_group(pos: str, sub_position: str | float) -> str:
     if any(h in sub for h in WIDE_HINTS):
         return "W"
     return "MF"
+
+
+def player_side(sub_position: str | float) -> str:
+    """Left / Right / Central from the Transfermarkt sub-position, for the
+    footedness-aware wide and full-back filters. Unknown -> 'Any'."""
+    sub = sub_position if isinstance(sub_position, str) else ""
+    if sub.startswith("Left") or sub.startswith("Right"):
+        return "Left" if sub.startswith("Left") else "Right"
+    return "Any"
 
 
 # Volume per-90 metrics split by whether the action happens with the ball or
@@ -118,6 +139,11 @@ def build_derived(df: pd.DataFrame) -> pd.DataFrame:
         "poss_won_att_third_p90": _per90(df["ss_possessionWonAttThird"], n),
         "errors_p90": _per90(df["ss_errorLeadToShot"].fillna(0) + df["ss_errorLeadToGoal"].fillna(0), n),
         "dribbled_past_p90": _per90(df["ss_dribbledPast"], n),
+        # goalkeeping per-90s (used by the GK roles)
+        "saves_p90": _per90(df["ss_saves"], n),
+        "high_claims_p90": _per90(df["ss_highClaims"], n),
+        "runs_out_p90": _per90(df["ss_runsOut"], n),
+        "goals_conceded_p90": _per90(df["ss_goalsConceded"], n),
     })
     return pd.concat([df, derived], axis=1)
 
@@ -164,6 +190,61 @@ def add_contract(df: pd.DataFrame) -> pd.DataFrame:
     return df.copy()
 
 
+def add_foot(df: pd.DataFrame) -> pd.DataFrame:
+    """A clean preferred-foot column from the FIFA data, for the foot filter."""
+    df["foot"] = df["fifa_foot"].where(df["fifa_foot"].isin(["Left", "Right"]))
+    return df.copy()
+
+
+# metrics whose year-on-year change defines "improving / fading" form. Kept
+# small and output-focused on purpose: a composite over a few headline rates.
+TRAJECTORY_METRICS = ["np_xg_p90", "xa_p90", "ss_rating", "dribbles_p90", "tackles_won_p90"]
+
+
+def add_trajectory(df: pd.DataFrame) -> pd.DataFrame:
+    """A per-player form trend across the two seasons, computed BEFORE we drop
+    to the latest season.
+
+    For players present in both 24/25 and 25/26 we z-score each trajectory
+    metric within its season (so the two seasons are comparable), take the mean
+    change across those metrics, and bucket it into Rising / Steady / Fading.
+    Players seen in only one season get 'New / one season'. The trend is a
+    display tag only -- it does NOT feed the scores.
+    """
+    work = df[["name_key", "season"] + TRAJECTORY_METRICS].copy()
+    # z-score each metric within season so a league-wide shift isn't read as form
+    for m in TRAJECTORY_METRICS:
+        mu = work.groupby("season")[m].transform("mean")
+        sd = work.groupby("season")[m].transform("std").replace(0, np.nan)
+        work[f"z_{m}"] = (work[m] - mu) / sd
+    work["form_index"] = work[[f"z_{m}" for m in TRAJECTORY_METRICS]].mean(axis=1)
+
+    # change = latest season's form index minus the earlier one, per player
+    pivot = work.pivot_table(index="name_key", columns="season", values="form_index", aggfunc="mean")
+    seasons = sorted(pivot.columns)
+    if len(seasons) >= 2:
+        earlier, latest = seasons[0], seasons[-1]
+        delta = pivot[latest] - pivot[earlier]
+    else:
+        delta = pd.Series(np.nan, index=pivot.index)
+
+    def bucket(d):
+        if pd.isna(d):
+            return "New / one season"
+        if d >= 0.25:
+            return "Rising"
+        if d <= -0.25:
+            return "Fading"
+        return "Steady"
+
+    traj = pd.DataFrame({
+        "name_key": delta.index,
+        "form_delta": delta.values,
+        "trajectory": [bucket(d) for d in delta.values],
+    })
+    return df.merge(traj, on="name_key", how="left")
+
+
 def add_market_value(df: pd.DataFrame) -> pd.DataFrame:
     """Join a Transfermarkt market value (EUR) by normalised name. Falls back to
     the FIFA value estimate when Transfermarkt has no match, flagged in
@@ -208,15 +289,20 @@ def main():
     df = possession_adjust(df)  # before percentiles: rank on the adjusted values
     df = add_market_value(df)
     df = add_contract(df)
+    df = add_foot(df)
 
-    # refine group using Transfermarkt sub-position where the join gave one
-    df = df.assign(pos_group=[
-        position_group(p, sub) for p, sub in zip(df["pos"], df.get("sub_position"))
-    ])
+    # refine group + side using Transfermarkt sub-position where the join gave one
+    df = df.assign(
+        pos_group=[position_group(p, sub) for p, sub in zip(df["pos"], df.get("sub_position"))],
+        side=[player_side(sub) for sub in df.get("sub_position")],
+    )
+
+    # form trend needs BOTH seasons, so compute it before the latest-season cut
+    df = df[df["nineties"] >= MIN_NINETIES].copy()
+    df = add_trajectory(df)
     df = add_percentiles(df)
 
-    # keep players with a real sample, latest season per player
-    df = df[df["nineties"] >= MIN_NINETIES].copy()
+    # keep the latest season per player for the shortlist
     df["season_rank"] = df.groupby("name_key")["season"].rank(method="first", ascending=False)
     df = df[df["season_rank"] == 1].drop(columns="season_rank")
 
@@ -229,7 +315,9 @@ def main():
         "with_fifa_value_only": int((df["value_source"] == "FIFA estimate").sum()),
         "no_value": int((df["value_source"] == "unknown").sum()),
         "with_contract_years": int(df["contract_years_left"].notna().sum()),
+        "with_foot": int(df["foot"].notna().sum()),
         "position_groups": df["pos_group"].value_counts().to_dict(),
+        "trajectory": df["trajectory"].value_counts().to_dict(),
         "leagues": df["league"].value_counts().to_dict(),
         "min_nineties": MIN_NINETIES,
     }
