@@ -1,18 +1,84 @@
-# What Premier League clubs pay for a player, and why
+# Club fit finder — scout players by role, fit and value
 
-When a Premier League club signs a player, the fee rarely matches the player's
-listed market value. This project asks why: how much of a fee is explained by
-the player, how much by the club selling, and how much by the buying club's own
-habits — and which clubs consistently pay more or less than they "should".
+A football recruitment tool: **pick a club and the kind of player you want, and
+get a ranked shortlist.** It reads as a three-step story — where the club is thin
+for that role, the players who fit, then one player up close — and scores every
+candidate on **ability**, **fit** and **value**.
 
-Scope: every permanent, paid, disclosed transfer **into** a Premier League club,
-from any league, 2020/21 to 2025/26.
+It grew out of a transfer-fee study ("what do Premier League clubs pay, and
+why?"), which now powers the **value** side of the tool and lives on as a second
+page. Both run from one Streamlit app.
 
-**Explore the results:** Looker Studio report *(link to be added once
-published)*. There's also a fuller interactive version in Streamlit (`app.py`),
-where every number, ranges included, follows the filters.
+Scope: scouting covers the top-5 European leagues (2024/25 & 2025/26); the fee
+model covers every permanent, paid, disclosed transfer **into** a Premier League
+club, 2020/21 to 2025/26.
 
-## Key findings
+```bash
+pip install -r requirements.txt
+streamlit run app.py          # two pages: Club fit finder, Fee analysis
+```
+
+## The club fit finder
+
+**Pick a club, choose a role and playing style, and get a ranked shortlist.**
+Each candidate is scored three ways:
+
+- **Ability** — how good they are at the things the role cares about, ranked by
+  percentile *within their position* (the same read as a FotMob stat page).
+- **Fit** — how closely their statistical profile matches the role template,
+  regardless of overall level (a specialist can fit better than a better
+  all-rounder).
+- **Value** — affordability against your budget, plus how much ability you get
+  per euro, using Transfermarkt market values and the fee model.
+
+Stats come from the top-5 European leagues (2024/25 & 2025/26): xG, xA, duels,
+aerials, passing splits and more, from FBref, Understat and SofaScore via the
+[top5-football-dataset](https://github.com/m-mahadi/top5-football-dataset).
+Transfermarkt market values are joined on from this project's own data. It ships
+with ~14 role templates across every position — goalkeeper (shot-stopper,
+sweeper-keeper), centre-back, full-back, midfield, winger, forward — and the
+weights live in `src/roles.py`, easy to tweak.
+
+To keep the shortlist honest rather than a black-box leaderboard:
+
+- **Raw numbers alongside the ranks.** Each percentile bar shows the actual
+  value (0.62 npxG/90, 86% pass accuracy), the way a FotMob stat page does.
+- **Possession-adjusted volume.** On-ball stats are scaled by the team's share
+  of the ball (proxied by touches vs. the league median), so a player at a
+  high-possession side isn't flattered by his team's style, and defensive
+  volume at a low-possession side isn't under-counted.
+- **Contract awareness.** Years left on each player's contract are shown, and a
+  player in the last year of his deal is flagged as potentially cheaper.
+- **A one-line reason per pick.** Every shortlisted player comes with a short
+  "why": their standout metrics, how they sit against the budget, and any
+  contract flag.
+- **Defensible weights.** The role weights are expert judgement, so the app
+  (`src/role_validation.py`) checks them against the data: it flags metrics
+  that measure nearly the same thing and deflates their weight so a trait isn't
+  counted twice, and it runs a sensitivity test showing the ranking barely
+  moves when the weights are jittered ±25% — the metric *selection* drives the
+  result, not the exact numbers. See the methodology panel at the foot of the
+  page.
+- **Finer positions and goalkeepers.** Centre-backs and full-backs are scouted
+  separately, goalkeepers have their own roles, and wide/full-back searches can
+  be filtered by side and preferred foot.
+- **Availability filter.** Narrow the shortlist to players with ≤2 years left
+  on their contract — more likely to move and cheaper to sign.
+- **Form trend.** Players seen in both seasons carry a Rising / Steady / Fading
+  tag from the change in their output (a tag only; it doesn't change the scores).
+- **Explained fit.** The player profile breaks the fit score into per-metric
+  contributions, showing which traits match the role and which work against it.
+
+---
+
+## Fee analysis (the second page)
+
+The study the project grew from: when a Premier League club signs a player, the
+fee rarely matches the listed market value. This asks why — how much is explained
+by the player, the selling club, and the buying club's own habits — and which
+clubs consistently pay more or less than they "should".
+
+### Key findings
 
 > Figures below are from the final model: 696 paid deals, with the
 > selling-league fix, relegated-seller flag and buyer-clustered standard
@@ -40,60 +106,7 @@ where every number, ranges included, follows the filters.
   they sell young players with low listed values. Compared like-for-like, PL
   clubs pay them about 26% *less*.
 
-## Club fit finder (scouting tool)
-
-Beyond explaining fees, the app now answers a recruitment question: **pick a
-club, choose the role and playing style you want, and get a ranked shortlist of
-players.** Each candidate is scored three ways:
-
-- **Ability** — how good they are at the things the role cares about, ranked by
-  percentile *within their position* (the same read as a FotMob stat page).
-- **Fit** — how closely their statistical profile matches the role template,
-  regardless of overall level (a specialist can fit better than a better
-  all-rounder).
-- **Value** — affordability against your budget, plus how much ability you get
-  per euro, using Transfermarkt market values and the fee model.
-
-Stats come from the top-5 European leagues (2024/25 & 2025/26): xG, xA, duels,
-aerials, passing splits and more, from FBref, Understat and SofaScore via the
-[top5-football-dataset](https://github.com/m-mahadi/top5-football-dataset).
-Transfermarkt market values are joined on from this project's own data. It ships
-with ~12 role templates (ball-playing centre-back, deep-lying playmaker, inside
-forward, poacher, pressing forward, and more); the weights are in
-`src/roles.py` and easy to tweak.
-
-To keep the shortlist honest rather than a black-box leaderboard:
-
-- **Raw numbers alongside the ranks.** Each percentile bar shows the actual
-  value (0.62 npxG/90, 86% pass accuracy), the way a FotMob stat page does.
-- **Possession-adjusted volume.** On-ball stats are scaled by the team's share
-  of the ball (proxied by touches vs. the league median), so a player at a
-  high-possession side isn't flattered by his team's style, and defensive
-  volume at a low-possession side isn't under-counted.
-- **Contract awareness.** Years left on each player's contract are shown, and a
-  player in the last year of his deal is flagged as potentially cheaper.
-- **A one-line reason per pick.** Every shortlisted player comes with a short
-  "why": their standout metrics, how they sit against the budget, and any
-  contract flag.
-- **Defensible weights.** The role weights are expert judgement, so the app
-  (`src/role_validation.py`) checks them against the data: it flags metrics
-  that measure nearly the same thing and deflates their weight so a trait isn't
-  counted twice, and it runs a sensitivity test showing the ranking barely
-  moves when the weights are jittered ±25% — the metric *selection* drives the
-  result, not the exact numbers. See the "How this role is weighted" panel
-  under the shortlist.
-- **Finer positions and goalkeepers.** Centre-backs and full-backs are scouted
-  separately, goalkeepers have their own roles (shot-stopper, sweeper-keeper),
-  and wide/full-back searches can be filtered by side and preferred foot.
-- **Availability filter.** Narrow the shortlist to players with ≤2 years left
-  on their contract — more likely to move and cheaper to sign.
-- **Form trend.** Players seen in both seasons carry a Rising / Steady / Fading
-  tag from the change in their output, shown next to the shortlist (a tag only;
-  it doesn't change the scores).
-- **Explained fit.** The player profile breaks the fit score into per-metric
-  contributions, showing which traits match the role and which work against it.
-
-## The questions
+### The questions
 
 1. **Fee vs. value.** How far do fees drift from Transfermarkt market value, and
    how much does market value alone explain?
@@ -103,7 +116,7 @@ To keep the shortlist honest rather than a black-box leaderboard:
    Is there a domestic premium on PL-to-PL deals?
 4. **Drivers.** Which factors push a fee up or down the most?
 
-## Method
+### Method (fee model)
 
 - **Target:** log of the transfer fee.
 - **Baseline:** linear regression on log market value only.
@@ -172,11 +185,12 @@ pip install -r requirements.txt
 python src/data_prep.py     # -> data/pl_transfers.parquet, data/prep_summary.json
 python src/train_model.py   # -> models/ (model, metrics, scored transfers)
 python src/scout_prep.py    # -> data/scout_players.parquet (for the fit finder)
-streamlit run app.py
+streamlit run app.py        # opens both pages: Club fit finder + Fee analysis
 ```
 
-`prep_summary.json` records how many moves were dropped as free/loan or
-undisclosed — worth quoting in a write-up.
+`streamlit run app.py` launches a two-page app: the **Club fit finder**
+(default) and the **Fee analysis**. `prep_summary.json` records how many moves
+were dropped as free/loan or undisclosed — worth quoting in a write-up.
 
 ### Scouting data
 
@@ -215,9 +229,11 @@ CI (`.github/workflows/ci.yml`) runs `ruff` and the tests on every pull request.
 
 ### 5. Deploy the Streamlit app (optional)
 
-The app only reads four small files from `models/`: `transfers_scored.parquet`,
-`metrics.json`, `features.json` and `seller_tier_effects.json`. `.gitignore`
-lets these through, so after training, commit them and deploy `app.py` on
+The app reads a handful of small committed files: four from `models/`
+(`transfers_scored.parquet`, `metrics.json`, `features.json`,
+`seller_tier_effects.json`) for the Fee analysis page, and
+`data/scout_players.parquet` for the Club fit finder. `.gitignore` lets these
+through, so after running the pipeline, commit them and deploy `app.py` on
 [Streamlit Community Cloud](https://streamlit.io/cloud). The raw data never has
 to leave your machine.
 
@@ -247,35 +263,38 @@ to leave your machine.
 
 ```
 pl-transferfee/
-├── app.py                 # Streamlit app: the club fit finder (scouting tool)
+├── app.py                      # entry point + navigation (st.navigation router)
 ├── pages/
-│   └── 2_Fee_analysis.py  # the fee-vs-value analysis this project grew from
+│   ├── 1_Club_fit_finder.py    # the scouting tool (default page)
+│   └── 2_Fee_analysis.py       # the fee-vs-value analysis this grew from
 ├── src/
-│   ├── config.py          # seasons, league tiers, big-six ids, deadlines
-│   ├── download_data.py   # fetch the CSVs from the Kaggle mirror
-│   ├── data_prep.py       # build one row per transfer, with features
-│   ├── train_model.py     # baseline + XGBoost, CV residuals, contributions
-│   ├── seller_effects.py  # domestic premium regression (OLS)
-│   ├── analysis.py        # per-club premiums with bootstrap ranges
-│   ├── labels.py          # readable feature names and groups
-│   ├── export_looker.py   # CSVs for the Looker Studio report
-│   ├── roles.py           # scouting metric vocabulary + role templates
-│   ├── scout_prep.py      # build the scouting table (per-90s, percentiles, values)
-│   └── scouting.py        # ability / fit / value scoring and ranking
-├── docs/looker_studio.md  # how to build the Looker Studio report
-├── tests/                 # pytest unit tests
-├── data/                  # downloaded data (gitignored, except scout_players.parquet)
-├── models/                # generated outputs (gitignored, except the app's 4 files)
-├── exports/               # Looker Studio CSVs (gitignored)
-├── pyproject.toml         # pytest and ruff settings
-└── .streamlit/config.toml # app theme
+│   ├── config.py               # seasons, league tiers, big-six ids, deadlines
+│   ├── download_data.py        # fetch the CSVs from the Kaggle mirror
+│   ├── data_prep.py            # build one row per transfer, with features
+│   ├── train_model.py          # baseline + XGBoost, CV residuals, contributions
+│   ├── seller_effects.py       # domestic premium regression (OLS)
+│   ├── analysis.py             # per-club premiums with bootstrap ranges
+│   ├── labels.py               # readable feature names and groups
+│   ├── export_looker.py        # CSVs for the Looker Studio report
+│   ├── roles.py                # scouting metric vocabulary + role templates
+│   ├── scout_prep.py           # build the scouting table (per-90s, percentiles, values)
+│   ├── scouting.py             # ability / fit / value scoring and ranking
+│   └── role_validation.py      # redundancy correction + weight stability checks
+├── docs/looker_studio.md       # how to build the Looker Studio report
+├── tests/                      # pytest unit tests
+├── data/                       # downloaded data (gitignored, except scout_players.parquet)
+├── models/                     # generated outputs (gitignored, except the app's 4 files)
+├── exports/                    # Looker Studio CSVs (gitignored)
+├── pyproject.toml              # pytest and ruff settings
+└── .streamlit/config.toml      # app theme
 ```
 
-## Ideas for v2
+## Ideas for next
 
-- Split the model by position group (defenders and forwards are priced on
-  different things).
-- Track whether "overpaid" signings went on to justify the fee (minutes played,
-  resale value).
-- Go further on selling clubs' financial pressure (relegation is now a
-  feature; club losses and PSR/financial-fair-play pressure are not).
+- Validate role fit against transfers that actually happened (data windows
+  make this only suggestive for now).
+- Split wide roles by side (left vs right) once sample sizes allow.
+- Go further on selling clubs' financial pressure in the fee model (club losses,
+  PSR/financial-fair-play pressure).
+- Carry the scouting page's card styling onto the Fee analysis page so both feel
+  like one product.
