@@ -262,7 +262,7 @@ to leave your machine.
 ## Project structure
 
 ```
-pl-transferfee/
+squad-fit/
 ├── app.py                      # entry point + navigation (st.navigation router)
 ├── pages/
 │   ├── 1_Club_fit_finder.py    # the scouting tool (default page)
